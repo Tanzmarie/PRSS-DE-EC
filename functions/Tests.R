@@ -56,10 +56,6 @@ calculate_tests <- function(n, rho) {
   return(wtimes)
 }
 
-# Example usage:
-result_dataframe <- calculate_tests(n = 1000, rho = 0.05)
-print(result_dataframe)
-
 
 
 

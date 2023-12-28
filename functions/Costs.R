@@ -23,8 +23,4 @@ calculateEconomicCosts <- function(cv, cm, cp, cl, tau, tau0, h, omega, n, mu, k
   return(Costs)
 }
 
-# Example usage
-result_dataframe <- calculateEconomicCosts(cv, cm, cp, cl, tau, tau0, h, omega, n, mu, k, co)
-print(result_dataframe)
-
 
