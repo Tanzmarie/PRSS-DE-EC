@@ -1,5 +1,5 @@
 # Policy Recommendation for Sample Pooling Strategies in Dynamic Epidemics under Uncertainty of Economic Costs
-Evaluate the optimal policy recommendation for the best pooling strategies under the assumption of an dynamically evolving epidemic if economic costs are subject to uncertainty. Uncertainty in costs is viewed as the potential loss of revenue or an latent increase in costs due to quarantining healthy individuals.
+Evaluate the optimal policy recommendation for the best pooling strategies under the assumption of an dynamically evolving epidemic if economic costs are subject to uncertainty. Uncertainty in costs is viewed as the potential loss of revenue or a latent increase in costs due to quarantining healthy individuals.
 
 # Example
 
