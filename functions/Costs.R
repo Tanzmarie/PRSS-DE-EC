@@ -22,4 +22,3 @@ calculateEconomicCosts <- function(cv, cm, cp, cl, tau, tau0, h, omega, n, mu, k
   
   return(Costs)
 }
-

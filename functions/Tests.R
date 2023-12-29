@@ -30,7 +30,7 @@ calculate_tests <- function(n, rho) {
   # Calculate the expected number of floors, i.e., waiting times
   wtimes <- data.frame(
     Algorithm = c("Individual", "Dorfman", "RPooling", "Hypercube", "3-Stage", "4-Stage", "Binary Splitting A", "Binary Splitting B"),
-    'Waiting Times' = c(0, 1, 1, 1, 2, 3, floor(log2(1/rho)) - 1, floor(log2(1/rho)) - 1)
+    'Waiting Times' = c(0, 1, 1, 1, 2, 3, floor(log2(1/rho)), floor(log2(1/rho)))
   )
   
   optimal_tdorf <- optimize(f = dorfman, interval = c(1, 15), n = n, rho = rho)$objective
