@@ -11,8 +11,8 @@ source("functions/Costs.R")
 # Calculate number of expected tests in pooling algorithms
 
 tests  = calculate_tests(100,0.05)
-tau = tests["Tests"] 
-omega = tests["Waiting.Times"]
+tau = unlist(tests["Tests"])
+omega = unlist(tests["Waiting.Times"])
 
 # Define values for parameters
 cv <- 10
