@@ -3,6 +3,9 @@ library(rstan)
 
 options(mc.cores = parallel::detectCores())
 
+source("functions/Tests.R")
+source("functions/Costs.R")
+
 # Load data for the epidemics
 
 

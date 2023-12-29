@@ -1,9 +1,3 @@
-library(spBayes)
-library(MASS)
-library(tidyverse)
-library(foreach)
-library(doParallel)
-
 # Function to generate synthetic spatio-temporal prevalence data
 generate_spatiotemporal_prevalence <- function(n_locations, n_time_points, kernel_params) {
   # Generate synthetic temporal data
@@ -60,6 +54,7 @@ plot_time_series <- function(data, location) {
 }
 
 # Function to find the closest location in the data to the specified target location
+
 find_closest_location <- function(data, target_location) {
   distances <- sqrt((data$u1 - target_location[1])^2 + (data$u2 - target_location[2])^2)
   closest_index <- which.min(distances)
