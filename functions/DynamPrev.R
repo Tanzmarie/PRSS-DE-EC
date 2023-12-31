@@ -48,7 +48,7 @@ plot_spatiotemporal_prevalence <- function(data, time_point) {
 plot_time_series <- function(data, location) {
   ggplot(data[data$u1 == location[1] & data$u2 == location[2], ], aes(x = t, y = transformed_prevalence)) +
     geom_line() +
-    ylim(0,0.4) +
+    ylim(0,0.3) +
     labs(title = paste("Time Series Plot at Location", paste(location, collapse = ", ")),
          x = "Time", y = "Transformed Prevalence")
 }

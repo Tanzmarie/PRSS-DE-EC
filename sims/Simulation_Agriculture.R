@@ -3,21 +3,39 @@ library(rstan)
 
 options(mc.cores = parallel::detectCores())
 
+source("functions/DynamPrev.R")
 source("functions/Tests.R")
 source("functions/Costs.R")
 
 # Load data for the epidemics
 
+load("prevalence.RData")
+
+# Find the prevalence value in region u_i in time t_i
+target_time_point <- 1
+location_point <- c(0.1,0.8)
+
+closest_location <- find_closest_location(simulated_data, location_point)
+
+subset_data <- simulated_data[simulated_data$t == target_time_point & 
+                                simulated_data$u1 == closest_location[1] &
+                                simulated_data$u2 == closest_location[2],]
+
+prevalence_at_target <- subset_data$transformed_prevalence
+
+print(paste("Closest location to target location", paste(location_point, collapse = ", "), 
+            "is", paste(closest_location, collapse = ", ")))
+print(paste("Prevalence at closest location and time point", target_time_point, ":", prevalence_at_target))
 
 # Tests
-result_dataframe <- calculate_tests(n = 1000, rho = 0.05)
-print(result_dataframe)
+result_tests <- calculate_tests(n = 1000, rho = prevalence_at_target)
+print(result_tests)
 
 
 # Using MCMC to capture Uncertainty of Economic Costs
 # Simulate data from LN(40, 4)
-set.seed(123)  # Set seed for reproducibility
-simulated_data <- rlnorm(1000, meanlog = log(15), sdlog = sqrt(4))
+set.seed(100)  # Set seed for reproducibility
+income_data <- rlnorm(1000, meanlog = log(15), sdlog = sqrt(3))
 
 # Define the Stan model
 stan_code <- '
@@ -34,7 +52,7 @@ parameters {
 
 model {
   // Stage 1: Log-normal distribution for CS
-  CS ~ lognormal(mu, sqrt(4));
+  CS ~ lognormal(mu, sqrt(3));
 
   // Stage 2: Log-normal distribution for mu
   mu ~ lognormal(h, sqrt(p_sq));
@@ -57,8 +75,8 @@ stan_model <- stan_model(model_code = stan_code)
 # Simulate or use real data
 # Replace with your actual data
 data_list <- list(
-  N = length(simulated_data),
-  CS = simulated_data
+  N = length(income_data),
+  CS = income_data
 )
 
 # Run the MCMC sampler
@@ -67,11 +85,27 @@ fit <- sampling(stan_model, data = data_list, chains = 4, iter = 10000)
 # Print summary of the results
 print(fit)
 
+# extract mu values
 res = c(mean(extract(fit)$mu),mean(extract(fit)$mu) - 1.96 * sd(extract(fit)$mu),mean(extract(fit)$mu) + 1.96 * sd(extract(fit)$mu))
 res = exp(res)
 
 
 # Costs
-result_dataframe <- calculateEconomicCosts(cv, cm, cp, cl, tau, tau0, h, omega, n, mu, k, co)
-print(result_dataframe)
+cv = 1000
+cm = 50
+cp = 50
+cl = 50
+tau0 = 800
+
+tau = unlist(result_tests["Tests"])
+omega = unlist(result_tests["Waiting.Times"])
+
+h = 1
+n = 1000
+mu = res[1]
+k = n * prevalence_at_target
+co = 200
+
+result_costs <- calculateEconomicCosts(cv, cm, cp, cl, tau, tau0, h, omega, n, mu, k, co)
+print(result_costs)
 
