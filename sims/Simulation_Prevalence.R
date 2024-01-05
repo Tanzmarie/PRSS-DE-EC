@@ -32,7 +32,7 @@ load("prevalence.RData")
 
 # Example: Time series plot for the closest location to (0.5, 0.5) and contour plot for time t = 1
 
-target_time_point <- 500
+target_time_point <- 1
 plot_spatiotemporal_prevalence(simulated_data, target_time_point)
 
 # (0.2,0.8), (0.1,0.2), (0.2,0.1),(1,0.2), (0.7,0.5), (0.7,0.2), (0.1,0.8)

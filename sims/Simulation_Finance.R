@@ -1,5 +1,7 @@
 # Dependencies
 library(rstan)
+library(knitr)
+library(tidyverse)
 
 options(mc.cores = parallel::detectCores())
 
@@ -12,10 +14,12 @@ source("functions/Costs.R")
 load("prevalence.RData")
 
 # Find the prevalence value in region u_i in time t_i
-target_time_point <- 1
-location_point <- c(0.1,0.8)
+target_time_point <- 500
+location_point <- c(0.5,0.5)
 
 closest_location <- find_closest_location(simulated_data, location_point)
+plot_time_series(simulated_data, closest_location)
+
 
 subset_data <- simulated_data[simulated_data$t == target_time_point & 
                                 simulated_data$u1 == closest_location[1] &
@@ -28,14 +32,14 @@ print(paste("Closest location to target location", paste(location_point, collaps
 print(paste("Prevalence at closest location and time point", target_time_point, ":", prevalence_at_target))
 
 # Tests
-result_tests <- calculate_tests(n = 1000, rho = prevalence_at_target)
+result_tests <- calculate_tests(n = 500, rho = prevalence_at_target)
 print(result_tests)
 
 
 # Using MCMC to capture Uncertainty of Economic Costs
 # Simulate data from LN(40, 4)
 set.seed(100)  # Set seed for reproducibility
-income_data <- rlnorm(1000, meanlog = log(15), sdlog = sqrt(3))
+income_data <- rlnorm(500, meanlog = log(35), sdlog = sqrt(3))
 
 # Define the Stan model
 stan_code <- '
@@ -89,23 +93,29 @@ print(fit)
 res = c(mean(extract(fit)$mu),mean(extract(fit)$mu) - 1.96 * sd(extract(fit)$mu),mean(extract(fit)$mu) + 1.96 * sd(extract(fit)$mu))
 res = exp(res)
 
+res = exp(c(3.49,3.33,3.64))
 
 # Costs
 cv = 1000
-cm = 50
-cp = 100
-cl = 50
-tau0 = 800
+cm = 25
+cp = 50
+cl = 25
+tau0 = 450
 
-tau = unlist(result_tests["Tests"])
+tau = unlist(result_tests["10% Negative"])
 omega = unlist(result_tests["Waiting.Times"])
 
-h = 1
-n = 1000
-mu = res[1]
-k = n * prevalence_at_target
-co = 200
+h = 0.5
+n = 500
+mu = res[2]
+k = round(n * prevalence_at_target)
+co = 150
 
 result_costs <- calculateEconomicCosts(cv, cm, cp, cl, tau, tau0, h, omega, n, mu, k, co)
-print(result_costs)
 
+result_costs = result_costs %>% mutate_if(is.numeric, round)
+result_costs = cbind(result_costs, result_tests["10% Negative"], result_tests["Waiting.Times"])
+result_costs = result_costs[,c("Algorithm","10% Negative", "Waiting.Times", "DC","CS","CO","Costs")]
+rownames(result_costs) = NULL
+
+kable(result_costs, format = "latex")
