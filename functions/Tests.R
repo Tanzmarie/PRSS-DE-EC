@@ -29,15 +29,15 @@ calculate_tests <- function(n, rho) {
   
   # Calculate the expected number of floors, i.e., waiting times
   wtimes <- data.frame(
-    Algorithm = c("Individual", "Dorfman", "RPooling", "Hypercube", "3-Stage", "4-Stage", "Binary Splitting A", "Binary Splitting B"),
-    'Waiting Times' = c(0, 1, 1, 1, 2, 3, floor(log2(1/rho)), floor(log2(1/rho)))
+    Algorithm = c("Individual", "Dorfman", "RPooling", "Hypercube", "3-Stage", "4-Stage", "Binary Splitting"),
+    'Waiting Times' = c(0, 1, 1, 1, 2, 3, log2(1/rho))
   )
   
   optimal_tdorf <- optimize(f = dorfman, interval = c(1, 15), n = n, rho = rho)$objective
   optimal_trpool <- optim(par = c(s = 1, r = 1), fn = function(params) rpooling(params["s"], params["r"], n, rho), method = "L-BFGS-B", lower = c(s = 1, r = 1), upper = c(s = 10, r = 15))$value
   optimal_tbinary <- optimize(f = binary, interval = c(1, 100), n = n, rho = rho)$objective
   
-  tests <- floor(c(n, optimal_tdorf, optimal_trpool, hypercube(n, rho), multi(n, rho, 2), multi(n, rho, 3), binary(1, n, rho), optimal_tbinary))
+  tests <- floor(c(n, optimal_tdorf, optimal_trpool, hypercube(n, rho), multi(n, rho, 2), multi(n, rho, 3), optimal_tbinary))
   
   wtimes$Tests <- tests
   
