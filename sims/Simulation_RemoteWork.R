@@ -1,9 +1,5 @@
 # Dependencies
-library(rstan)
-library(knitr)
 library(tidyverse)
-
-options(mc.cores = parallel::detectCores())
 
 source("functions/DynamPrev.R")
 source("functions/Tests.R")
@@ -47,63 +43,10 @@ ggplot(result_df, aes(x = Time, y = Tests, color = Algorithm)) +
   theme_minimal() +
   theme(legend.position = "right")
 
-# Calulating economic costs
+# Calculating economic costs
 
-set.seed(100)  # Set seed for reproducibility
-income_data <- rlnorm(500, meanlog = log(15), sdlog = sqrt(3))
-
-
-
-# Define the Stan model
-stan_code <- '
-data {
-  int<lower=0> N;  // Number of observations
-  vector[N] CS;   // Observed values for Stage 1
-}
-
-parameters {
-  real<lower=0> mu;      // Mean parameter for Stage 2
-  real<lower=0> h;       // Hyperparameter for mu
-  real<lower=0> p_sq;    // Squared scale parameter for mu
-}
-
-model {
-  // Stage 1: Log-normal distribution for CS
-  CS ~ lognormal(mu, sqrt(3));
-
-  // Stage 2: Log-normal distribution for mu
-  mu ~ lognormal(h, sqrt(p_sq));
-
-  // Prior for hyperparameter h
-  h ~ exponential(1);
-
-  // Prior for squared scale parameter p^2
-  p_sq ~ exponential(1);
-}
-
-generated quantities {
-  // Posterior predictive checks or additional outputs can be added here
-}
-'
-
-# Compile the model
-stan_model <- stan_model(model_code = stan_code)
-
-# Simulate or use real data
-# Replace with your actual data
-data_list <- list(
-  N = length(income_data),
-  CS = income_data
-)
-
-# Run the MCMC sampler
-fit <- sampling(stan_model, data = data_list, chains = 4, iter = 10000)
-
-# Print summary of the results
-print(fit)
-
-# extract mu values
-res = exp(c(2.49,2.64, 2.79))
+# Extract mu values from Simulation of Incomes
+res = exp(c(3.34,3.49,3.64))
 
 # Costs
 n = 1000
@@ -117,8 +60,6 @@ tau <- lapply(tests, function(mat) mat[, "Tests"])
 omega <- lapply(tests, function(mat) mat[, "Waiting.Times"])
 k = unlist(round(n * subset_data[5]))
 
-h = 0.5
-n = 1000
 mu = res[2]
 co = 150
 
@@ -169,9 +110,10 @@ result_costs <- do.call(rbind, lapply(names(economic_costs_list), function(h) {
 ggplot(result_costs, aes(x = Time, y = Costs, color = Algorithm)) +
   geom_line(aes(group = Algorithm), linewidth = 1, alpha = 0.5) +
   facet_wrap(~ h, nrow = 3, ncol = 4, scales = "free_y", labeller = labeller(h = function(value) paste0("h = ", value))) +
-  labs(title = "Evolution of Deterministic Costs Over Time",
+  labs(title = "Evolution of Costs Over Time",
        x = "Time",
-       y = "Deterministic Costs") +
+       y = "Costs") +
+  ylim(0,125000) +
   theme_light() +
   theme(legend.position = "right")
 

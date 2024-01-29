@@ -27,7 +27,7 @@ calculate_tests <- function(n, rho) {
     return(result)
   }
   
-  # Calculate the expected number of floors, i.e., waiting times
+  # Calculate the expected number of rounds, i.e., waiting times
   wtimes <- data.frame(
     Algorithm = c("Individual", "Dorfman", "RPooling", "Hypercube", "3-Stage", "4-Stage", "Binary Splitting"),
     'Waiting Times' = c(0, 1, 1, 1, 2, 3, log2(1/rho))
@@ -53,17 +53,18 @@ calculate_tests <- function(n, rho) {
   intn10 = floor(intn10)
   wtimes["10% Negative"] = intn10
   
+  # Check for special cases manually
+  
+  if(sum(wtimes$Tests <= 1) > 0) {
+    sv = which(wtimes$Tests <= 1)
+    wtimes$Tests[c(sv)] = 1
+    wtimes$Waiting.Times[c(sv)] = 0
+    wtimes$`10% Positive`[c(sv)] = 1
+    wtimes$`10% Negative`[c(sv)] = 1
+  }
+  
+  
   return(wtimes)
 }
-
-
-
-
-
-
-
-
-
-
 
 
