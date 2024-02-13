@@ -121,22 +121,31 @@ result_costs <- do.call(rbind, lapply(names(economic_costs_list), function(loc_i
     )
 }))
 
-# Plotting with facet_grid
+# Filter the data to keep only the lowest cost line for each facet
+lowest_costs <- result_costs %>%
+  group_by(Location, Time) %>%
+  filter(Costs == min(Costs)) %>%
+  ungroup()
+
 
 # Define coordinates for each location
 coordinates <- c("1" = "(0.1, 0.8)", "2" = "(0.5, 0.5)", "3" = "(0.1, 0.2)")
 
+x11()
 ggplot(result_costs, aes(x = Time, y = Costs, color = Algorithm)) +
-  geom_line(aes(group = Algorithm), linewidth = 1, alpha = 0.5) +
+  geom_line(aes(group = Algorithm), size = 1, alpha = 0.1) +  
+  geom_line(data = lowest_costs, aes(group = 1), size = 1) +
   facet_wrap(~ Location, nrow = 3, ncol = 4, scales = "free_y", 
              labeller = labeller(Location = function(value) {
                return(coordinates[value])
              })) +
-  labs(title = "Evolution of Costs Over Time",
+  labs(title = "Evolution of Costs over Time",
        x = "Time",
        y = "Costs") +
   ylim(0, 125000) +
-  theme_light() +
-  theme(legend.position = "right")
+  theme_bw() +
+  theme(legend.position = "right",
+        legend.key.size = unit(3, "lines"))
+
 
 
