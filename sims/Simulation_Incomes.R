@@ -5,7 +5,35 @@ options(mc.cores = parallel::detectCores())
 
 
 set.seed(100)  # Set seed for reproducibility
-income_data <- rlnorm(500, meanlog = log(35), sdlog = sqrt(3))
+
+generate_group_params <- function(num_groups, mean_range, sd_range) {
+  group_params <- list()
+  for (i in 1:num_groups) {
+    meanlog <- runif(1, min = mean_range[1], max = mean_range[2])
+    sdlog <- runif(1, min = sd_range[1], max = sd_range[2])
+    group_params[[paste0("group", i)]] <- list(meanlog = meanlog, sdlog = sdlog)
+  }
+  return(group_params)
+}
+
+# Generate group parameters
+num_groups <- 3
+mean_range <- c(2.5, 4)  
+sd_range <- c(0.1, 1)    
+group_params <- generate_group_params(num_groups, mean_range, sd_range)
+
+# Number of samples per group
+n_per_group <- 500
+
+# Generate data for each group
+income_data <- c()
+
+for (group in names(group_params)) {
+  params <- group_params[[group]]
+  group_data <- rlnorm(n_per_group, meanlog = params$meanlog, sdlog = params$sdlog)
+  income_data <- c(income_data, group_data)
+}
+
 
 
 
