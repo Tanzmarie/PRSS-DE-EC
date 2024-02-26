@@ -27,11 +27,14 @@ calculate_tests <- function(n, rho) {
     return(result)
   }
   
-  # Calculate the expected number of rounds, i.e., waiting times
+  # Calculate the number waiting times
   wtimes <- data.frame(
     Algorithm = c("Individual", "Dorfman", "RPooling", "Hypercube", "3-Stage", "4-Stage", "Binary Splitting"),
     'Waiting Times' = c(0, 1, 1, 1, 2, 3, log2(1/rho))
   )
+  
+  # Calculate the number of expected number of tests
+  rho = rho + .Machine$double.xmin
   
   optimal_tdorf <- optimize(f = dorfman, interval = c(1, 15), n = n, rho = rho)$objective
   optimal_trpool <- optim(par = c(s = 1, r = 1), fn = function(params) rpooling(params["s"], params["r"], n, rho), method = "L-BFGS-B", lower = c(s = 1, r = 1), upper = c(s = 10, r = 15))$value
@@ -40,7 +43,14 @@ calculate_tests <- function(n, rho) {
   tests <- floor(c(n, optimal_tdorf, optimal_trpool, hypercube(n, rho), multi(n, rho, 2), multi(n, rho, 3), optimal_tbinary))
   
   wtimes$Tests <- tests
+  wtimes$k = round(rho * n)
   
+  
+  if (unique(wtimes$k) == 0) {
+    wtimes$Tests[-1] = 1
+    wtimes$Waiting.Times[-1] = 1
+    
+  } 
   
   
   int10 = wtimes[3] + 0.1 * wtimes[3]
@@ -55,14 +65,14 @@ calculate_tests <- function(n, rho) {
   
   # Check for special cases manually
   
-  if(sum(wtimes$Tests <= 1) > 0) {
+' if(sum(wtimes$Tests <= 1) > 0) {
     sv = which(wtimes$Tests <= 1)
     wtimes$Tests[c(sv)] = 1
-    wtimes$Waiting.Times[c(sv)] = 0
+    wtimes$Waiting.Times[c(sv)] = 1
     wtimes$`10% Positive`[c(sv)] = 1
     wtimes$`10% Negative`[c(sv)] = 1
   }
-  
+  '
   
   return(wtimes)
 }
