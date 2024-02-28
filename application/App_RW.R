@@ -4,9 +4,7 @@ library(tidyverse)
 source("functions/Tests.R")
 source("functions/Costs.R")
 
-COVID_19_Faelle_7_Tage_Inzidenz_Landkreise <- read_csv("application/COVID-19-Faelle_7-Tage-Inzidenz_Landkreise.csv")
-
-data = COVID_19_Faelle_7_Tage_Inzidenz_Landkreise
+data <- read_csv("application/COVID-19-Faelle_7-Tage-Inzidenz_Landkreise.csv")
 
 # location: "09375" == Regensburg
 
@@ -87,7 +85,7 @@ result_costs <- do.call(rbind, lapply(names(economic_costs_list), function(h) {
 # Filter the data to keep only the lowest cost line for each facet
 lowest_costs <- result_costs %>%
   group_by(h, Time) %>%
-  filter(Costs == min(Costs)) %>%
+  filter(Costs == min(Costs, na.rm = TRUE)) %>%
   ungroup()
 
 # Plotting with facet_wrap

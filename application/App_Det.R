@@ -89,7 +89,7 @@ result_costs <- do.call(rbind, lapply(names(economic_costs_list), function(cm) {
 # Filter the data to keep only the lowest cost line for each facet
 lowest_costs <- result_costs %>%
   group_by(CM, Time) %>%
-  filter(Costs == min(Costs)) %>%
+  filter(Costs == min(Costs, na.rm = TRUE)) %>%
   ungroup()
 
 
@@ -103,6 +103,7 @@ ggplot(result_costs, aes(x = Time, y = Costs, color = Algorithm)) +
   labs(title = "Evolution of Economic Costs over Time",
        x = "Time",
        y = "Costs") +
+  ylim(0, 100000) +
   theme_bw() +
   theme(legend.position = "right",
         legend.key.size = unit(3, "lines"))

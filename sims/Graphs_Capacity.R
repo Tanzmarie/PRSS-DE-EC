@@ -1,7 +1,7 @@
 # Dependencies
 library(tidyverse)
 
-source("functions/DynamPrev.R")
+source("functions/Prevalence.R")
 source("functions/Tests.R")
 source("functions/Costs.R")
 
@@ -111,7 +111,7 @@ result_costs <- do.call(rbind, lapply(names(economic_costs_list), function(tau0)
 # Filter the data to keep only the lowest cost line for each facet
 lowest_costs <- result_costs %>%
   group_by(TAU0, Time) %>%
-  filter(Costs == min(Costs)) %>%
+  filter(Costs == min(Costs, na.rm = TRUE)) %>%
   ungroup()
 
 

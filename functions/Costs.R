@@ -13,7 +13,7 @@ calculateEconomicCosts <- function(cv, cm, cp, cl, tau, tau0, h, omega, n, mu, k
   
   # Create a data frame
   Costs <- data.frame(
-    Algorithm = c("Individual", "Dorfman", "RPooling", "Hypercube", "3-Stage", "4-Stage", "Binary Splitting"),
+    Algorithm = c("Individual", "Dorfman", "Grid", "Hypercube", "3-Stage", "4-Stage", "Binary Splitting"),
     DC = DC,
     CS = CS,
     CO = CO,

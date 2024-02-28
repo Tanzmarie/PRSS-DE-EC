@@ -1,19 +1,28 @@
 library(readr)
+library(readxl)
 library(tidyverse)
 
 source("functions/Tests.R")
 source("functions/Costs.R")
 
-COVID_19_Faelle_7_Tage_Inzidenz_Landkreise <- read_csv("application/COVID-19-Faelle_7-Tage-Inzidenz_Landkreise.csv")
+# Load data and perform data manipulation
 
-data = COVID_19_Faelle_7_Tage_Inzidenz_Landkreise
+cov_dat <- read_csv("application/COVID-19-Faelle_7-Tage-Inzidenz_Landkreise.csv")
+krs_dat <- read_excel("application/Kreis_2021-07-31.xlsx", skip = 7)
+
+krs_dat = krs_dat[,c(2,3)]
+names(krs_dat) = c("KrS","Kreis")
+
+landkreis_loc = unique(cov_dat$Landkreis_id)
+
+# Perform left join
+cov_dat <- left_join(cov_dat, krs_dat, by = c("Landkreis_id" = "KrS"))
 
 # location: "09375" == Regensburg
-
-location = unique(data$Landkreis_id)
-
 # Locations for which you want to calculate tests
-locations <- cbind(c("09375","11005","14612"))
+
+location = unique(cov_dat$Kreis)
+locations <- location[sample(length(location), size = 10, replace = FALSE)]
 
 # Initialize a list to store the results for each location
 tests_list <- list()
@@ -22,7 +31,7 @@ tests_list <- list()
 
 # Loop over locations
 for (i in locations) {
-  dt = data[which(data$Landkreis_id == i),]
+  dt = cov_dat[which(cov_dat$Kreis == i),]
   loc = i
   
   dt$prevalence = ((dt$`Inzidenz_7-Tage`/7) * 14)/100000
@@ -79,7 +88,7 @@ for (loc_index in locations) {
     current_tau <- tests[[i]]$Tests
     current_omega <- tests[[i]]$Waiting.Times
     
-    # Calculate k based on your data (adjust as needed)
+    # Calculate k based on your cov_dat (adjust as needed)
     k_cur <- k[i]
     
     # Call calculateEconomicCosts for the current time point and fixed h value
@@ -106,10 +115,10 @@ result_costs <- do.call(rbind, lapply(names(economic_costs_list), function(loc_i
     )
 }))
 
-# Filter the data to keep only the lowest cost line for each facet
+# Filter the cov_dat to keep only the lowest cost line for each facet
 lowest_costs <- result_costs %>%
   group_by(Location, Time) %>%
-  filter(Costs == min(Costs)) %>%
+  filter(Costs == min(Costs, na.rm = TRUE)) %>%
   ungroup()
 
 
@@ -122,7 +131,7 @@ x11()
 ggplot(result_costs, aes(x = Time, y = Costs, color = Algorithm)) +
   geom_point(aes(group = Algorithm), alpha = 0.1, shape = ".") +  
   geom_line(data = lowest_costs, aes(group = 1), size = 1) +
-  facet_wrap(~ Location, nrow = 3, ncol = 4, scales = "free_y", 
+  facet_wrap(~ Location, nrow = 5, ncol = 4, scales = "free_y", 
              labeller = labeller(Location = function(value) {
                return(coordinates[value])
              })) +

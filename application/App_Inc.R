@@ -87,17 +87,15 @@ result_costs <- do.call(rbind, lapply(names(economic_costs_list), function(mu) {
 # Filter the data to keep only the lowest cost line for each facet
 lowest_costs <- result_costs %>%
   group_by(MU, Time) %>%
-  filter(Costs == min(Costs)) %>%
+  filter(Costs == min(Costs, na.rm = TRUE)) %>%
   ungroup()
-
-
 
 
 # Plotting with facet_grid
 x11()
 ggplot(result_costs, aes(x = Time, y = Costs, color = Algorithm)) +
   geom_point(aes(group = Algorithm), alpha = 0.1, shape = ".") +   
-  geom_line(data = lowest_costs, aes(group = 1), size = 1) +
+  geom_line(data = lowest_costs, aes(group = 2), size = 1) +
   facet_wrap(~ MU, nrow = 3, ncol = 1, scales = "free_y", labeller = label_both) +
   labs(title = "Evolution of Costs Over Time",
        x = "Time",
