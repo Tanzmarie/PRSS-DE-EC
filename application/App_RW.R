@@ -98,8 +98,8 @@ ggplot(result_costs, aes(x = Time, y = Costs, color = Algorithm)) +
   labs(title = "Evolution of Economic Costs over Time",
        x = "Time",
        y = "Costs") +
-  ylim(0, 125000) +
+  ylim(0, 110000) +
   theme_bw() +
   theme(legend.position = "right",
-        legend.key.size = unit(3, "lines"))
+        legend.key.size = unit(7, "lines"))
 

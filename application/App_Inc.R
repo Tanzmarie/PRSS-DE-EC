@@ -97,11 +97,11 @@ ggplot(result_costs, aes(x = Time, y = Costs, color = Algorithm)) +
   geom_point(aes(group = Algorithm), alpha = 0.1, shape = ".") +   
   geom_line(data = lowest_costs, aes(group = 2), size = 1) +
   facet_wrap(~ MU, nrow = 3, ncol = 1, scales = "free_y", labeller = label_both) +
-  labs(title = "Evolution of Costs Over Time",
+  labs(title = "Evolution of Economic Costs over Time",
        x = "Time",
        y = "Costs") +
   ylim(0, 125000) +
   theme_bw() +
   theme(legend.position = "right",
-        legend.key.size = unit(3, "lines"))
+        legend.key.size = unit(7, "lines"))
 

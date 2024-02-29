@@ -139,13 +139,13 @@ ggplot(result_costs, aes(x = Time, y = Costs, color = Algorithm)) +
              labeller = labeller(Location = function(value) {
                return(coordinates[value])
              })) +
-  labs(title = "Evolution of Costs over Time",
+  labs(title = "Evolution of Economic Costs over Time",
        x = "Time",
        y = "Costs") +
   ylim(0, 125000) +
   theme_bw() +
   theme(legend.position = "right",
-        legend.key.size = unit(3, "lines"))
+        legend.key.size = unit(7, "lines"))
 
 
 

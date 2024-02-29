@@ -8,7 +8,7 @@ calculate_tests <- function(n, rho) {
       opt = function(n, rho, s) {
         res = n * ((1/s) + 1 - (1 - rho)^s)
       }
-      result = optimize(f = opt, interval = c(1, 200), n = n, rho = rho)$objective
+      result = optimize(f = opt, interval = c(1, 60), n = n, rho = rho)$objective
     }
     return(result)
   }
@@ -18,7 +18,7 @@ calculate_tests <- function(n, rho) {
     opt = function(s, n, rho) {
       res =  n * ((2/s) + rho + (1 - rho) * (1 - (1 - rho)^(s - 1))^2)
     }
-    result = optimize(f = opt, interval = c(1, 200), n = n, rho = rho)$objective
+    result = optimize(f = opt, interval = c(1, 60), n = n, rho = rho)$objective
     return(result)
   }
   

@@ -11,16 +11,17 @@ data = COVID_19_Faelle_7_Tage_Inzidenz_Landkreise
 
 location = unique(data$Landkreis_id)
 test = data[which(data$Landkreis_id == "09375"),]
-loc = "09375"
+loc = "Regensburg"
 
 
 test$prevalence = ((test$`Inzidenz_7-Tage`/7) * 14)/100000
 
 test$prevalence2 = test$`Faelle_7-Tage`/test$Bevoelkerung
 
+x11()
 ggplot(test, aes(x = Meldedatum, y = prevalence)) +
   geom_line() +
-  labs(title = paste("Time Series of Covid-19 Prevalence at Location", paste(loc, collapse = ", ")),
+  labs(title = paste("Time Series of Covid-19 Prevalence in", paste(loc, collapse = ", ")),
        x = "Date",
        y = "Prevalence") +
   theme_bw() 
@@ -50,3 +51,4 @@ ggplot(result_df, aes(x = Time, y = Tests, color = Algorithm)) +
        y = "Tests") +
   theme_minimal() +
   theme(legend.position = "right")
+

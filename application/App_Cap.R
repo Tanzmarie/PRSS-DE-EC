@@ -109,5 +109,5 @@ ggplot(result_costs, aes(x = Time, y = Costs, color = Algorithm)) +
   ylim(0, 125000) +
   theme_bw() +
   theme(legend.position = "right",
-        legend.key.size = unit(3, "lines"))
+        legend.key.size = unit(7, "lines"))
 

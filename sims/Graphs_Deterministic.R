@@ -114,14 +114,15 @@ lowest_costs <- result_costs %>%
 
 
 # Plotting with facet_grid
+x11()
 ggplot(result_costs, aes(x = Time, y = Costs, color = Algorithm)) +
   geom_line(aes(group = Algorithm), size = 1, alpha = 0.1) +  
   geom_line(data = lowest_costs, aes(group = 1), size = 1) +
   facet_wrap(~ CM, nrow = 3, ncol = 2, scales = "free_y", labeller = label_both) +
-  labs(title = "Evolution of Costs over Time",
+  labs(title = "Evolution of Economic Costs over Time",
        x = "Time",
        y = "Costs") +
   theme_bw() +
   theme(legend.position = "right",
-        legend.key.size = unit(3, "lines"))
+        legend.key.size = unit(7, "lines"))
 
