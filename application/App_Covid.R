@@ -20,11 +20,10 @@ test$prevalence2 = test$`Faelle_7-Tage`/test$Bevoelkerung
 
 ggplot(test, aes(x = Meldedatum, y = prevalence)) +
   geom_line() +
-  labs(title = paste("Time Series of Covid-19 Prevalence at Location", paste(loc, collapse = ", ")),
+  labs(title = paste("Time Series Simulated Prevalence", paste("Regensburg", collapse = ", ")),
        x = "Date",
        y = "Prevalence") +
   theme_bw() 
-
 
 tests = lapply(X = test$prevalence, calculate_tests, n = 1000)
 

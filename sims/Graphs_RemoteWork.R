@@ -1,66 +1,31 @@
 # Dependencies
 library(tidyverse)
 
-source("functions/Prevalence.R")
 source("functions/Tests.R")
 source("functions/Costs.R")
 
-# Load data for the epidemics
 
-load("prevalence.RData")
-
-# Find the prevalence value in region u_i in time t_i
-location_point <- c(0.5,0.5)
-
-closest_location <- find_closest_location(simulated_data, location_point)
-
-subset_data = simulated_data[simulated_data$u1 == closest_location[1] &
-               simulated_data$u2 == closest_location[2],]
+# Simulation prevalence
+prev = seq(0,0.35,0.01)
 
 # Calculate the number of tests
-tests = lapply(X = unlist(subset_data[5]), calculate_tests, n = 1000)
-
-# Assuming 'result' is the list of matrices you obtained
-# Convert the list of matrices to a data frame
-
-result_df <- do.call(rbind, lapply(seq_along(tests), function(i) {
-  data.frame(
-    Time = i,
-    Algorithm = tests[[i]][1],
-    Tests = tests[[i]][, "Tests"],
-    Negative_Deviation = tests[[i]][, "10% Negative"],
-    Positive_Deviation = tests[[i]][, "10% Positive"]
-  )
-}))
-
-# Plotting
-ggplot(result_df, aes(x = Time, y = Tests, color = Algorithm)) +
-  geom_line(aes(group = Algorithm), size = 1) +
-  geom_ribbon(aes(ymin = Negative_Deviation, ymax = Positive_Deviation, fill = Algorithm), alpha = 0.1) +
-  labs(title = "Evolution of Tests Over Time",
-       x = "Time",
-       y = "Tests") +
-  theme_minimal() +
-  theme(legend.position = "right")
+tests = lapply(X = prev, calculate_tests, n = 1000)
 
 # Calculating economic costs
 
-# Extract mu values from Simulation of Incomes
-res = exp(c(3.34,3.49,3.64))
-
-# Costs
+# Paramater values
 n = 1000
 cv = 1000
 cm = 25
 cp = 50
 cl = 25
-tau0 = 850
+tau0 = 750
 
 tau <- lapply(tests, function(mat) mat[, "Tests"])
-omega <- lapply(tests, function(mat) mat[, "Waiting.Times"])
-k = unlist(round(n * subset_data[5]))
+omega <- lapply(tests, function(mat) mat[, "Duration"])
+k = unlist(round(n * prev))
 
-mu = res[2]
+mu = 30
 co = 150
 
 h_values <- seq(0,1,by = 0.1)
@@ -96,7 +61,7 @@ for (h in h_values) {
 # Combine the results for different h values
 result_costs <- do.call(rbind, lapply(names(economic_costs_list), function(h) {
   data.frame(
-    Time = rep(seq_along(economic_costs_list[[h]]), each = nrow(economic_costs_list[[h]][[1]])),
+    Time = rep(prev, each = nrow(economic_costs_list[[h]][[1]])),
     Algorithm = rep(economic_costs_list[[h]][[1]][, "Algorithm"], times = length(economic_costs_list[[h]])),
     DC = unlist(lapply(economic_costs_list[[h]], function(result) result[, "DC"])),
     CS = unlist(lapply(economic_costs_list[[h]], function(result) result[, "CS"])),
@@ -110,7 +75,11 @@ result_costs <- do.call(rbind, lapply(names(economic_costs_list), function(h) {
 lowest_costs <- result_costs %>%
   group_by(h, Time) %>%
   filter(Costs == min(Costs, na.rm = TRUE)) %>%
+  arrange("Individual") %>%  # Replace priority_variable with the variable you want to prioritize
+  slice(1) %>%
   ungroup()
+
+
 
 # Plotting with facet_wrap
 x11()
@@ -119,10 +88,10 @@ ggplot(result_costs, aes(x = Time, y = Costs, color = Algorithm)) +
   geom_line(data = lowest_costs, aes(group = 1), size = 1) +  # Highlight lowest cost line
   facet_wrap(~ h, nrow = 3, ncol = 4, scales = "free_y", 
              labeller = labeller(h = function(value) paste0("h = ", value))) +
-  labs(title = "Evolution of Economic Costs over Time",
-       x = "Time",
-       y = "Costs") +
-  ylim(0, 125000) +
+  labs(title = "Evolution of economic cost for different prevalence values",
+       x = "Prevalence",
+       y = "Cost") +
+  ylim(0,150000) +
   theme_bw() +
   theme(legend.position = "right",
         legend.key.size = unit(3, "lines"))

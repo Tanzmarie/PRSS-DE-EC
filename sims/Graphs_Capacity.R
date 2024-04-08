@@ -1,52 +1,17 @@
 # Dependencies
 library(tidyverse)
 
-source("functions/Prevalence.R")
 source("functions/Tests.R")
 source("functions/Costs.R")
 
-# Load data for the epidemics
 
-load("prevalence.RData")
-
-# Find the prevalence value in region u_i in time t_i
-location_point <- c(0.5,0.5)
-
-closest_location <- find_closest_location(simulated_data, location_point)
-
-subset_data = simulated_data[simulated_data$u1 == closest_location[1] &
-                               simulated_data$u2 == closest_location[2],]
+# Simulation prevalence
+prev = seq(0,0.35,0.01)
 
 # Calculate the number of tests
-tests = lapply(X = unlist(subset_data[5]), calculate_tests, n = 1000)
-
-# Assuming 'result' is the list of matrices you obtained
-# Convert the list of matrices to a data frame
-
-result_df <- do.call(rbind, lapply(seq_along(tests), function(i) {
-  data.frame(
-    Time = i,
-    Algorithm = tests[[i]][1],
-    Tests = tests[[i]][, "Tests"],
-    Negative_Deviation = tests[[i]][, "10% Negative"],
-    Positive_Deviation = tests[[i]][, "10% Positive"]
-  )
-}))
-
-# Plotting
-ggplot(result_df, aes(x = Time, y = Tests, color = Algorithm)) +
-  geom_line(aes(group = Algorithm), size = 1) +
-  geom_ribbon(aes(ymin = Negative_Deviation, ymax = Positive_Deviation, fill = Algorithm), alpha = 0.1) +
-  labs(title = "Evolution of Tests Over Time",
-       x = "Time",
-       y = "Tests") +
-  theme_minimal() +
-  theme(legend.position = "right")
-
+tests = lapply(X = prev, calculate_tests, n = 1000)
 
 # Calculating economic costs
-# Extract mu values from Simulation of Incomes
-res <- exp(c(3.34, 3.49, 3.64))
 
 # Costs
 n <- 1000
@@ -56,11 +21,11 @@ cp = 50
 cl <- 25
 h = 0.5
 co = 150
-mu = res[2]
+mu = 30
 
 tau <- lapply(tests, function(mat) mat[, "Tests"])
-omega <- lapply(tests, function(mat) mat[, "Waiting.Times"])
-k <- unlist(round(n * subset_data[5]))
+omega <- lapply(tests, function(mat) mat[, "Duration"])
+k <- unlist(round(n * prev))
 
 
 # Define testing capacity values
@@ -97,7 +62,7 @@ for (tau0_value in tau0_values) {
 # Combine the results for different tau0 values
 result_costs <- do.call(rbind, lapply(names(economic_costs_list), function(tau0) {
   data.frame(
-    Time = rep(seq_along(economic_costs_list[[tau0]]), each = nrow(economic_costs_list[[tau0]][[1]])),
+    Time = rep(prev, each = nrow(economic_costs_list[[tau0]][[1]])),
     Algorithm = rep(economic_costs_list[[tau0]][[1]][, "Algorithm"], times = length(economic_costs_list[[tau0]])),
     DC = unlist(lapply(economic_costs_list[[tau0]], function(result) result[, "DC"])),
     CS = unlist(lapply(economic_costs_list[[tau0]], function(result) result[, "CS"])),
@@ -112,6 +77,8 @@ result_costs <- do.call(rbind, lapply(names(economic_costs_list), function(tau0)
 lowest_costs <- result_costs %>%
   group_by(TAU0, Time) %>%
   filter(Costs == min(Costs, na.rm = TRUE)) %>%
+  arrange("Individual") %>%  # Replace priority_variable with the variable you want to prioritize
+  slice(1) %>%
   ungroup()
 
 
@@ -123,7 +90,6 @@ ggplot(result_costs, aes(x = Time, y = Costs, color = Algorithm)) +
   labs(title = "Evolution of Costs over Time",
        x = "Time",
        y = "Costs") +
-  ylim(0, 125000) +
   theme_bw() +
   theme(legend.position = "right",
         legend.key.size = unit(3, "lines"))
