@@ -13,7 +13,7 @@ calculateEconomicCosts <- function(cv, cm, cp, cl, tau, tau0, h, omega, n, mu, k
   
   # Create a data frame
   Costs <- data.frame(
-    Algorithm = c("Individual", "Dorfman", "Double Pooling", "Triple Pooling", "Three-stage", "Four-stage"),
+    Algorithm = c("Individual", "Dorfman", "Double-Pooling", "Triple-Pooling", "3-Stage", "4-Stage"),
     DC = DC,
     CS = CS,
     CO = CO,

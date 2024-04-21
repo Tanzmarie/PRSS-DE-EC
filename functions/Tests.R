@@ -212,8 +212,8 @@ calculate_tests = function(n,p,sims = 0) {
         mtests = mean(num_tests_vector)
         ltests = min(num_tests_vector)
         utests = max(num_tests_vector)
-        ltests = mean(num_tests_vector) - 2.576 * sd(num_tests_vector) / sqrt(length(num_tests_vector))
-        utests = mean(num_tests_vector) + 2.576 * sd(num_tests_vector) / sqrt(length(num_tests_vector))
+        #ltests = mean(num_tests_vector) - 2.576 * sd(num_tests_vector) / sqrt(length(num_tests_vector))
+        #utests = mean(num_tests_vector) + 2.576 * sd(num_tests_vector) / sqrt(length(num_tests_vector))
       }
     } else {
       mtests = NA
@@ -461,10 +461,10 @@ calculate_tests = function(n,p,sims = 0) {
         }
         
         mtests = mean(num_tests_vector)
-        #ltests = min(num_tests_vector)
-        #utests = max(num_tests_vector)
-        ltests = mean(num_tests_vector) - 2.576 * sd(num_tests_vector) / sqrt(length(num_tests_vector))
-        utests = mean(num_tests_vector) + 2.576 * sd(num_tests_vector) / sqrt(length(num_tests_vector))
+        ltests = min(num_tests_vector)
+        utests = max(num_tests_vector)
+        #ltests = mean(num_tests_vector) - 2.576 * sd(num_tests_vector) / sqrt(length(num_tests_vector))
+        #utests = mean(num_tests_vector) + 2.576 * sd(num_tests_vector) / sqrt(length(num_tests_vector))
       }
     } else {
       mtests = NA
@@ -654,7 +654,7 @@ calculate_tests = function(n,p,sims = 0) {
   Tests = rbind(individual(n),
                 dorfman(n,p,sims),
                 grid(n,p,sims),
-                triple(n,p,sims ),
+                triple(n,p,sims),
                 three(n,p, sims),
                 four(n,p, sims))
   
