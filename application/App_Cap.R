@@ -1,34 +1,19 @@
 library(readr)
 library(tidyverse)
 
-source("functions/Tests.R")
-source("functions/Costs.R")
+source("functions/tests.R")
+source("functions/costs.R")
 
-COVID_19_Faelle_7_Tage_Inzidenz_Landkreise <- read_csv("application/COVID-19-Faelle_7-Tage-Inzidenz_Landkreise.csv")
-
-data = COVID_19_Faelle_7_Tage_Inzidenz_Landkreise
-
-# location: "09375" == Regensburg
-
-location = unique(data$Landkreis_id)
-dt = data[which(data$Landkreis_id == "09375"),]
-loc = "09375"
-
-
+data <- read_csv("application/data/COVID-19-Faelle_7-Tage-Inzidenz_Landkreise.csv")
+dt = data[which(data$Landkreis_id == "02000"),]
 dt$prevalence = ((dt$`Inzidenz_7-Tage`/7) * 14)/100000
-dt$prevalence2 = dt$`Faelle_7-Tage`/dt$Bevoelkerung
 
-
-
-
-tests = lapply(X = dt$prevalence, calculate_tests, n = 1000)
+tests = lapply(X = dt$prevalence, calculate_tests, n = 1000, sims = 10)
 
 
 
 # Calculating economic costs
-
-# Extract mu values from Simulation of Incomes
-res <- exp(c(3.34, 3.49, 3.64))
+res = c(79.83803,87.35672,95.58348)
 
 # Costs
 n <- 1000
@@ -40,74 +25,136 @@ h = 0.5
 co = 150
 mu = res[2]
 
-tau <- lapply(tests, function(mat) mat[, "Tests"])
-omega <- lapply(tests, function(mat) mat[, "Waiting.Times"])
+tau = lapply(tests, function(mat) mat[, "Tests"])
+ltau = lapply(tests, function(mat) mat[, "Lower"])
+utau = lapply(tests, function(mat) mat[, "Upper"])
+omega = lapply(tests, function(mat) mat[, "Duration"])
 k = unlist(round(n * dt$prevalence))
 
 
 # Define testing capacity values
 tau0_values <- c(100, 150, 250, 500, 750, 1000)
 
-# Define a list to store the results for each tau0
-economic_costs_list <- list()
+# Define a list to store the results for each h
+economic_costs_list = list()
+l_economic_costs_list = list()
+u_economic_costs_list = list()
 
-# Iterate over tau0 values
-for (tau0_value in tau0_values) {
+# Iterate over h values
+for (tau0 in tau0_values) {
   # Define a list to store the results for each time point
-  result_costs_list <- list()
+  result_costs_list = list()
+  result_costs_list2 = list()
+  result_costs_list3 = list()
+  
   
   # Iterate over the indices
   for (i in seq_along(tau)) {
     # Extract tau and omega for the current time point
-    current_tau <- tau[[i]]
-    current_omega <- omega[[i]]
+    current_tau = tau[[i]]
+    l_current_tau = ltau[[i]]
+    u_current_tau = utau[[i]]
+    current_omega = omega[[i]]
     
     # Calculate k based on your data (adjust as needed)
-    k_cur <- k[i]
+    k_cur = k[i]
     
-    # Call calculateEconomicCosts for the current time point, fixed h value, fixed mu, and varied tau0
-    current_costs <- calculateEconomicCosts(cv, cm, cp, cl, current_tau, tau0_value, h, current_omega, n, mu, k_cur, co)
+    # Call calculateEconomicCosts for the current time point and h value
+    current_costs = calculateEconomicCosts(cv, cm, cp, cl, current_tau, tau0, h, current_omega, n, mu, co)
+    l_current_costs = calculateEconomicCosts(cv, cm, cp, cl, l_current_tau, tau0, h, current_omega, n, mu, co)
+    u_current_costs = calculateEconomicCosts(cv, cm, cp, cl, u_current_tau, tau0, h, current_omega, n, mu, co)
     
     # Store the result in the list
-    result_costs_list[[i]] <- current_costs
+    result_costs_list[[i]] = current_costs
+    result_costs_list2[[i]] = l_current_costs
+    result_costs_list3[[i]] = u_current_costs
   }
   
-  # Store the results for this tau0 value
-  economic_costs_list[[as.character(tau0_value)]] <- result_costs_list
+  # Store the results for this h value
+  economic_costs_list[[as.character(tau0)]] = result_costs_list
+  l_economic_costs_list[[as.character(tau0)]] = result_costs_list2
+  u_economic_costs_list[[as.character(tau0)]] = result_costs_list3
 }
 
-# Combine the results for different tau0 values
-result_costs <- do.call(rbind, lapply(names(economic_costs_list), function(tau0) {
+# Combine the results for different h values
+result_costs = do.call(rbind, lapply(names(economic_costs_list), function(tau0) {
   data.frame(
     Time = rep(seq_along(economic_costs_list[[tau0]]), each = nrow(economic_costs_list[[tau0]][[1]])),
     Algorithm = rep(economic_costs_list[[tau0]][[1]][, "Algorithm"], times = length(economic_costs_list[[tau0]])),
     DC = unlist(lapply(economic_costs_list[[tau0]], function(result) result[, "DC"])),
     CS = unlist(lapply(economic_costs_list[[tau0]], function(result) result[, "CS"])),
     Costs = unlist(lapply(economic_costs_list[[tau0]], function(result) result[, "Costs"])),
-    h = rep(h, each = nrow(economic_costs_list[[tau0]][[1]])),
-    MU = rep(mu, each = nrow(economic_costs_list[[tau0]][[1]])),
-    TAU0 = rep(as.numeric(tau0), each = nrow(economic_costs_list[[tau0]][[1]]))
+    tau0 = rep(as.numeric(tau0), each = nrow(economic_costs_list[[tau0]][[1]]))
   )
 }))
 
+
+result_costs2 = do.call(rbind, lapply(names(l_economic_costs_list), function(tau0) {
+  data.frame(
+    Time = rep(seq_along(economic_costs_list[[tau0]]), each = nrow(l_economic_costs_list[[tau0]][[1]])),
+    Algorithm = rep(l_economic_costs_list[[tau0]][[1]][, "Algorithm"], times = length(l_economic_costs_list[[tau0]])),
+    DC = unlist(lapply(l_economic_costs_list[[tau0]], function(result) result[, "DC"])),
+    CS = unlist(lapply(l_economic_costs_list[[tau0]], function(result) result[, "CS"])),
+    Costs = unlist(lapply(l_economic_costs_list[[tau0]], function(result) result[, "Costs"])),
+    tau0 = rep(as.numeric(tau0), each = nrow(l_economic_costs_list[[tau0]][[1]]))
+  )
+}))
+
+result_costs3 = do.call(rbind, lapply(names(u_economic_costs_list), function(tau0) {
+  data.frame(
+    Time = rep(seq_along(economic_costs_list[[tau0]]), each = nrow(u_economic_costs_list[[tau0]][[1]])),
+    Algorithm = rep(u_economic_costs_list[[tau0]][[1]][, "Algorithm"], times = length(u_economic_costs_list[[tau0]])),
+    DC = unlist(lapply(u_economic_costs_list[[tau0]], function(result) result[, "DC"])),
+    CS = unlist(lapply(u_economic_costs_list[[tau0]], function(result) result[, "CS"])),
+    Costs = unlist(lapply(u_economic_costs_list[[tau0]], function(result) result[, "Costs"])),
+    tau0 = rep(as.numeric(tau0), each = nrow(u_economic_costs_list[[tau0]][[1]]))
+  )
+}))
+
+result_costs$Lower = result_costs2$Costs
+result_costs$Upper = result_costs3$Costs
+
+
 # Filter the data to keep only the lowest cost line for each facet
-lowest_costs <- result_costs %>%
-  group_by(TAU0, Time) %>%
+lowest_costs = result_costs %>%
+  group_by(tau0, Time) %>%
   filter(Costs == min(Costs, na.rm = TRUE)) %>%
+  arrange("Individual") %>%  
+  slice(1) %>%
+  ungroup()
+
+lowest_costs2 = result_costs %>%
+  group_by(tau0, Time) %>%
+  filter(Lower == min(Lower, na.rm = TRUE)) %>%
+  arrange("Individual") %>%  
+  slice(1) %>%
+  ungroup()
+
+lowest_costs3 = result_costs %>%
+  group_by(tau0, Time) %>%
+  filter(Upper == min(Upper, na.rm = TRUE)) %>%
+  arrange("Individual") %>%  
+  slice(1) %>%
   ungroup()
 
 
-# Plotting with facet_grid
+
+lowest_costs2$Costs = lowest_costs2$Lower
+lowest_costs3$Costs = lowest_costs3$Upper
+
+# Plotting with facet_wrap
 x11()
 ggplot(result_costs, aes(x = Time, y = Costs, color = Algorithm)) +
-  geom_point(aes(group = Algorithm), alpha = 0.1, shape = ".") +  
-  geom_line(data = lowest_costs, aes(group = 1), size = 1) +
-  facet_wrap(~ TAU0, nrow = 2, ncol = 3, scales = "free_y", labeller = label_both) +
-  labs(title = "Evolution of Economic Costs over Time",
-       x = "Time",
-       y = "Costs") +
-  ylim(0, 125000) +
+  geom_line(data = lowest_costs, aes(group = 1), linewidth = 0.1) +
+  geom_line(data = lowest_costs2, aes(group = 1), linewidth = 0.5, alpha = 0.5) +
+  geom_line(data = lowest_costs3, aes(group = 1), linewidth = 0.5, alpha = 0.5) +
+  facet_wrap(~ tau0, nrow = 3, ncol = 2, scales = "free_y", 
+             labeller = labeller(tau0 = function(value) paste0("tau0 = ", value))) +
+  labs(title = "Progress of economic cost perindividual for the COVID-19 pandemic",
+       x = "Time in days",
+       y = "Economic cost per individual") +
   theme_bw() +
   theme(legend.position = "right",
         legend.key.size = unit(3, "lines"))
+
 

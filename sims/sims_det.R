@@ -1,15 +1,13 @@
 # Dependencies
-library(tidyverse)
-
-source("functions/Tests.R")
-source("functions/Costs.R")
+source("functions/tests.R")
+source("functions/costs.R")
 
 
 # Simulation prevalence
 prev = seq(0,0.35,0.01)
 
 # Calculate the number of tests
-tests = lapply(X = prev, calculate_tests, n = 1000)
+tests = lapply(X = prev, calculate_tests, n = 1000, sims = 0)
 
 # Calculating economic costs
 
@@ -21,7 +19,7 @@ cm_values <- c(0, 10, 25, 50, 100, 200)  # Change c_m values
 cl <- 25
 tau0 <- 750
 
-tau <- lapply(tests, function(mat) mat[, "Tests"])
+tau <- lapply(tests, function(mat) mat[, "Theoretical"])
 omega <- lapply(tests, function(mat) mat[, "Duration"])
 k <- unlist(round(n * prev))
 
@@ -82,12 +80,12 @@ lowest_costs <- result_costs %>%
 
 # Plotting with facet_grid
 ggplot(result_costs, aes(x = Time, y = Costs, color = Algorithm)) +
-  geom_line(aes(group = Algorithm), size = 1, alpha = 0.1) +  
+  geom_line(aes(group = Algorithm), linewidth = 1, alpha = 0.1) +  
   geom_line(data = lowest_costs, aes(group = 1), size = 1) +
   facet_wrap(~ CM, nrow = 3, ncol = 2, scales = "free_y", labeller = label_both) +
-  labs(title = "Evolution of Costs over Time",
-       x = "Time",
-       y = "Cost") +
+  labs(title = "Progression of economic cost per individual for different prevalence values",
+       x = "Prevalence",
+       y = "Costs per individual") +
   theme_bw() +
   theme(legend.position = "right",
         legend.key.size = unit(3, "lines"))

@@ -1,19 +1,18 @@
 # Dependencies
-library(tidyverse)
+source("functions/tests.R")
+source("functions/costs.R")
 
-source("functions/Tests.R")
-source("functions/Costs.R")
 
 
 # Simulation prevalence
 prev = seq(0,0.35,0.01)
 
 # Calculate the number of tests
-tests = lapply(X = prev, calculate_tests, n = 1000)
+tests = lapply(X = prev, calculate_tests, n = 1000, sims = 0)
 
 # Calculating economic costs
 # Extract mu values from Simulation of Incomes
-res <- seq(10,100, by = 10)
+res <- seq(0,35, by = 5)
 
 # Costs
 n <- 1000
@@ -25,7 +24,7 @@ tau0 <- 750
 h = 0.5
 co = 150
 
-tau <- lapply(tests, function(mat) mat[, "Tests"])
+tau <- lapply(tests, function(mat) mat[, "Theoretical"])
 omega <- lapply(tests, function(mat) mat[, "Duration"])
 k <- unlist(round(n * prev))
 
@@ -84,10 +83,10 @@ lowest_costs <- result_costs %>%
 ggplot(result_costs, aes(x = Time, y = Costs, color = Algorithm)) +
   geom_line(aes(group = Algorithm), size = 1, alpha = 0.1) +  
   geom_line(data = lowest_costs, aes(group = 1), size = 1) +
-  facet_wrap(~ MU, nrow = 5, ncol = 2, scales = "free_y", labeller = label_both) +
-  labs(title = "Evolution of Costs Over Time",
-       x = "Time",
-       y = "Costs") +
+  facet_wrap(~ MU, nrow = 4, ncol = 2, scales = "free_y", labeller = label_both) +
+  labs(title = "Progression of economic cost per individual for different prevalence values",
+       x = "Prevalence",
+       y = "Costs per individual") +
   theme_bw() +
   theme(legend.position = "right",
         legend.key.size = unit(3, "lines"))

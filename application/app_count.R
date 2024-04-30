@@ -2,13 +2,13 @@ library(readr)
 library(readxl)
 library(tidyverse)
 
-source("functions/Tests.R")
-source("functions/Costs.R")
+source("functions/tests.R")
+source("functions/costs.R")
 
 # Load data and perform data manipulation
 
-cov_dat <- read_csv("application/COVID-19-Faelle_7-Tage-Inzidenz_Landkreise.csv")
-krs_dat <- read_excel("application/Kreis_2021-07-31.xlsx", skip = 7)
+cov_dat <- read_csv("application/data/COVID-19-Faelle_7-Tage-Inzidenz_Landkreise.csv")
+krs_dat <- read_excel("application/data/Kreis_2021-07-31.xlsx", skip = 7)
 
 krs_dat = krs_dat[,c(2,3)]
 names(krs_dat) = c("KrS","Kreis")
@@ -18,7 +18,6 @@ landkreis_loc = unique(cov_dat$Landkreis_id)
 # Perform left join
 cov_dat <- left_join(cov_dat, krs_dat, by = c("Landkreis_id" = "KrS"))
 
-# location: "09375" == Regensburg
 # Locations for which you want to calculate tests
 
 location = unique(cov_dat$Kreis)
@@ -35,11 +34,10 @@ for (i in locations) {
   loc = i
   
   dt$prevalence = ((dt$`Inzidenz_7-Tage`/7) * 14)/100000
-  dt$prevalence2 = dt$`Faelle_7-Tage`/dt$Bevoelkerung
   
   
   # Calculate the number of tests
-  tests <- lapply(X = dt$prevalence, calculate_tests, n = 1000)
+  tests <- lapply(X = dt$prevalence, calculate_tests, n = 1000, sims = 0)
   
   # Calculate k for the current location
   k <- unlist(round(1000 * dt$prevalence)) 
@@ -50,9 +48,8 @@ for (i in locations) {
 }
 
 # Calculating economic costs
+res = c(64.07152,70.80998,77.47846)
 
-# Extract mu values from Simulation of Incomes
-res = exp(c(3.34,3.49,3.64))
 
 # Costs
 n = 1000
@@ -85,14 +82,14 @@ for (loc_index in locations) {
   # Iterate over indices
   for (i in seq_along(tests)) {
     # Extract tau and omega for the current time point
-    current_tau <- tests[[i]]$Tests
-    current_omega <- tests[[i]]$Waiting.Times
+    current_tau <- tests[[i]]$Theoretical
+    current_omega <- tests[[i]]$Duration
     
     # Calculate k based on your cov_dat (adjust as needed)
     k_cur <- k[i]
     
     # Call calculateEconomicCosts for the current time point and fixed h value
-    current_costs <- calculateEconomicCosts(cv, cm, cp, cl, current_tau, tau0, h, current_omega, n, mu, k_cur, co)
+    current_costs <- calculateEconomicCosts(cv, cm, cp, cl, current_tau, tau0, h, current_omega, n, mu, co)
     
     # Store the result in the list
     result_costs_list[[i]] <- current_costs
@@ -135,10 +132,9 @@ ggplot(result_costs, aes(x = Time, y = Costs, color = Algorithm)) +
              labeller = labeller(Location = function(value) {
                return(coordinates[value])
              })) +
-  labs(title = "Evolution of Economic Costs over Time",
-       x = "Time",
-       y = "Costs") +
-  ylim(0, 125000) +
+  labs(title = "Evolution of economic costs COVID-19 pandemic horizon in Germany",
+       x = "Time in days",
+       y = "Economic costs per individual") +
   theme_bw() +
   theme(legend.position = "right",
         legend.key.size = unit(3, "lines"))
