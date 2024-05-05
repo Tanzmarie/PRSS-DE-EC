@@ -12,53 +12,50 @@ tests = lapply(X = prev, calculate_tests, n = 1000, sims = 0)
 # Calculating economic costs
 
 # Costs
-n <- 1000
-cv <- 1000
-cm <- 25
+n = 1000
+cv = 1000
+cm = 25
 cp = 50
-cl <- 25
+cl = 25
 h = 0.5
 co = 150
-mu = 30
+mu = 50
 
-tau <- lapply(tests, function(mat) mat[, "Theoretical"])
-omega <- lapply(tests, function(mat) mat[, "Duration"])
-k <- unlist(round(n * prev))
+tau = lapply(tests, function(mat) mat[, "Theoretical"])
+omega = lapply(tests, function(mat) mat[, "Duration"])
 
 
 # Define testing capacity values
-tau0_values <- c(0, 50, 100, 150, 250, 500, 750, 1000)
+tau0_values = c(0, 50, 100, 150, 250, 500, 750, 1000)
 
 # Define a list to store the results for each tau0
-economic_costs_list <- list()
+economic_costs_list = list()
 
 # Iterate over tau0 values
 for (tau0_value in tau0_values) {
   # Define a list to store the results for each time point
-  result_costs_list <- list()
+  result_costs_list = list()
   
   # Iterate over the indices
   for (i in seq_along(tau)) {
     # Extract tau and omega for the current time point
-    current_tau <- tau[[i]]
-    current_omega <- omega[[i]]
+    current_tau = tau[[i]]
+    current_omega = omega[[i]]
     
-    # Calculate k based on your data (adjust as needed)
-    k_cur <- k[i]
     
     # Call calculateEconomicCosts for the current time point, fixed h value, fixed mu, and varied tau0
-    current_costs <- calculateEconomicCosts(cv, cm, cp, cl, current_tau, tau0_value, h, current_omega, n, mu, k_cur, co)
+    current_costs = calculateEconomicCosts(cv, cm, cp, cl, current_tau, tau0_value, h, current_omega, n, mu, co)
     
     # Store the result in the list
-    result_costs_list[[i]] <- current_costs
+    result_costs_list[[i]] = current_costs
   }
   
   # Store the results for this tau0 value
-  economic_costs_list[[as.character(tau0_value)]] <- result_costs_list
+  economic_costs_list[[as.character(tau0_value)]] = result_costs_list
 }
 
 # Combine the results for different tau0 values
-result_costs <- do.call(rbind, lapply(names(economic_costs_list), function(tau0) {
+result_costs = do.call(rbind, lapply(names(economic_costs_list), function(tau0) {
   data.frame(
     Time = rep(prev, each = nrow(economic_costs_list[[tau0]][[1]])),
     Algorithm = rep(economic_costs_list[[tau0]][[1]][, "Algorithm"], times = length(economic_costs_list[[tau0]])),
@@ -72,7 +69,7 @@ result_costs <- do.call(rbind, lapply(names(economic_costs_list), function(tau0)
 }))
 
 # Filter the data to keep only the lowest cost line for each facet
-lowest_costs <- result_costs %>%
+lowest_costs = result_costs %>%
   group_by(TAU0, Time) %>%
   filter(Costs == min(Costs, na.rm = TRUE)) %>%
   arrange("Individual") %>%  # Replace priority_variable with the variable you want to prioritize
@@ -88,7 +85,6 @@ ggplot(result_costs, aes(x = Time, y = Costs, color = Algorithm)) +
   labs(title = "Progression of economic cost per individual for different prevalence values",
        x = "Prevalence",
        y = "Costs per individual") +
-  ylim(0,200) +
   theme_bw() +
   theme(legend.position = "right",
         legend.key.size = unit(3, "lines"))

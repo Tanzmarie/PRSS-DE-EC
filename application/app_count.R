@@ -21,7 +21,8 @@ cov_dat <- left_join(cov_dat, krs_dat, by = c("Landkreis_id" = "KrS"))
 # Locations for which you want to calculate tests
 
 location = unique(cov_dat$Kreis)
-locations <- location[sample(length(location), size = 10, replace = FALSE)]
+set.seed(444)
+locations <- location[sample(length(location), size = 5, replace = FALSE)]
 
 # Initialize a list to store the results for each location
 tests_list <- list()
@@ -37,19 +38,17 @@ for (i in locations) {
   
   
   # Calculate the number of tests
-  tests <- lapply(X = dt$prevalence, calculate_tests, n = 1000, sims = 0)
+  tests <- lapply(X = dt$prevalence, calculate_tests, n = 1000, sims = 50)
   
-  # Calculate k for the current location
-  k <- unlist(round(1000 * dt$prevalence)) 
+
   
   
   # Store the results in the list
-  tests_list[[paste0("Location_", i)]] <- list(tests = tests, k = k)
+  tests_list[[paste0("Location_", i)]] <- list(tests = tests)
 }
 
 # Calculating economic costs
-res = c(64.07152,70.80998,77.47846)
-
+res = c(80.64042,87.35672,95.58348)
 
 # Costs
 n = 1000
@@ -57,7 +56,7 @@ cv = 1000
 cm = 25
 cp = 50
 cl = 25
-tau0 = 850
+tau0 = 750
 h = 0.5
 mu = res[2]
 co = 150
@@ -66,7 +65,8 @@ co = 150
 
 # Define a list to store the results for each location
 economic_costs_list <- list()
-
+l_economic_costs_list = list()
+u_economic_costs_list = list()
 
 
 
@@ -74,29 +74,37 @@ economic_costs_list <- list()
 for (loc_index in locations) {
   # Extract tests and k for the current location
   tests <- tests_list[[paste0("Location_", loc_index)]][["tests"]]
-  k <- tests_list[[paste0("Location_", loc_index)]][["k"]]
-  
+
   # Define a list to store the results for each time point
   result_costs_list <- list()
+  result_costs_list2 = list()
+  result_costs_list3 = list()
+  
   
   # Iterate over indices
   for (i in seq_along(tests)) {
     # Extract tau and omega for the current time point
-    current_tau <- tests[[i]]$Theoretical
+    current_tau <- tests[[i]]$Tests
+    l_current_tau = tests[[i]]$Lower
+    u_current_tau = tests[[i]]$Upper
     current_omega <- tests[[i]]$Duration
     
-    # Calculate k based on your cov_dat (adjust as needed)
-    k_cur <- k[i]
     
     # Call calculateEconomicCosts for the current time point and fixed h value
     current_costs <- calculateEconomicCosts(cv, cm, cp, cl, current_tau, tau0, h, current_omega, n, mu, co)
+    l_current_costs = calculateEconomicCosts(cv, cm, cp, cl, l_current_tau, tau0, h, current_omega, n, mu, co)
+    u_current_costs = calculateEconomicCosts(cv, cm, cp, cl, u_current_tau, tau0, h, current_omega, n, mu, co)
     
     # Store the result in the list
     result_costs_list[[i]] <- current_costs
+    result_costs_list2[[i]] = l_current_costs
+    result_costs_list3[[i]] = u_current_costs
   }
   
   # Store the results for this h value
   economic_costs_list[[as.character(loc_index)]] <- result_costs_list
+  l_economic_costs_list[[as.character(loc_index)]] = result_costs_list2
+  u_economic_costs_list[[as.character(loc_index)]] = result_costs_list3
   
 }
 
@@ -112,12 +120,55 @@ result_costs <- do.call(rbind, lapply(names(economic_costs_list), function(loc_i
     )
 }))
 
+result_costs2 <- do.call(rbind, lapply(names(l_economic_costs_list), function(loc_index) {
+  data.frame(
+    Time = rep(seq_along(l_economic_costs_list[[loc_index]]), each = nrow(l_economic_costs_list[[loc_index]][[1]])),
+    Algorithm = rep(l_economic_costs_list[[loc_index]][[1]][, "Algorithm"], times = length(l_economic_costs_list[[loc_index]])),
+    DC = unlist(lapply(l_economic_costs_list[[loc_index]], function(result) result[, "DC"])),
+    CS = unlist(lapply(l_economic_costs_list[[loc_index]], function(result) result[, "CS"])),
+    Costs = unlist(lapply(l_economic_costs_list[[loc_index]], function(result) result[, "Costs"])),
+    Location = rep(loc_index, each = nrow(l_economic_costs_list[[loc_index]][[1]]))
+  )
+}))
+
+result_costs3 <- do.call(rbind, lapply(names(u_economic_costs_list), function(loc_index) {
+  data.frame(
+    Time = rep(seq_along(u_economic_costs_list[[loc_index]]), each = nrow(u_economic_costs_list[[loc_index]][[1]])),
+    Algorithm = rep(u_economic_costs_list[[loc_index]][[1]][, "Algorithm"], times = length(u_economic_costs_list[[loc_index]])),
+    DC = unlist(lapply(u_economic_costs_list[[loc_index]], function(result) result[, "DC"])),
+    CS = unlist(lapply(u_economic_costs_list[[loc_index]], function(result) result[, "CS"])),
+    Costs = unlist(lapply(u_economic_costs_list[[loc_index]], function(result) result[, "Costs"])),
+    Location = rep(loc_index, each = nrow(u_economic_costs_list[[loc_index]][[1]]))
+  )
+}))
+
+result_costs$Lower = result_costs2$Costs
+result_costs$Upper = result_costs3$Costs
+
 # Filter the cov_dat to keep only the lowest cost line for each facet
 lowest_costs <- result_costs %>%
   group_by(Location, Time) %>%
   filter(Costs == min(Costs, na.rm = TRUE)) %>%
+  arrange("Individual") %>%  
+  slice(1) %>%
   ungroup()
 
+lowest_costs2 = result_costs %>%
+  group_by(Location, Time) %>%
+  filter(Lower == min(Lower, na.rm = TRUE)) %>%
+  arrange("Individual") %>%  
+  slice(1) %>%
+  ungroup()
+
+lowest_costs3 = result_costs %>%
+  group_by(Location, Time) %>%
+  filter(Upper == min(Upper, na.rm = TRUE)) %>%
+  arrange("Individual") %>%  
+  slice(1) %>%
+  ungroup()
+
+lowest_costs2$Costs = lowest_costs2$Lower
+lowest_costs3$Costs = lowest_costs3$Upper
 
 # Plotting
 
@@ -125,19 +176,30 @@ coordinates <- as.vector(locations)
 coordinates <- setNames(coordinates, locations)
 
 x11()
+algorithm_colors =  c("Individual" = "black",
+                      "Dorfman" = "green",
+                      "Double-Pooling" = "blue",
+                      "R-Pooling" = "cyan2",
+                      "3-Stage" = "red",
+                      "4-Stage" = "darkgoldenrod"
+)
+
 ggplot(result_costs, aes(x = Time, y = Costs, color = Algorithm)) +
-  geom_point(aes(group = Algorithm), alpha = 0.1, shape = ".") +  
-  geom_line(data = lowest_costs, aes(group = 1), size = 1) +
-  facet_wrap(~ Location, nrow = 5, ncol = 4, scales = "free_y", 
+  geom_line(data = lowest_costs, aes(group = 1), linewidth = 0.1) +
+  geom_line(data = lowest_costs2, aes(group = 1), linewidth = 0.5, alpha = 0.1) +
+  geom_line(data = lowest_costs3, aes(group = 1), linewidth = 0.5, alpha = 0.1) +
+  facet_wrap(~ Location, nrow = 5, ncol = 1, scales = "free_y", 
              labeller = labeller(Location = function(value) {
                return(coordinates[value])
              })) +
-  labs(title = "Evolution of economic costs COVID-19 pandemic horizon in Germany",
+  labs(title = "Progress of economic cost per individual over the COVID-19 pandemic horizon in German districts",
        x = "Time in days",
-       y = "Economic costs per individual") +
+       y = "Economic cost per individual") +
   theme_bw() +
   theme(legend.position = "right",
-        legend.key.size = unit(3, "lines"))
+        legend.key.size = unit(3, "lines")) +
+scale_color_manual(values = algorithm_colors)
+
 
 
 

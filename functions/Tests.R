@@ -4,11 +4,11 @@ calculate_tests = function(n,p,sims = 0) {
   
   individual = function(n) {
     
-    if(round(n*p) == 0) {
-      rs = 1
-    } else {
-      rs = n
-    }
+     if(round(n*p) == 0) {
+       rs = 1
+     } else {
+       rs = n
+     }
     
     df = data.frame("n" = n,
                     "p" = p,
@@ -395,7 +395,7 @@ calculate_tests = function(n,p,sims = 0) {
         theo = n*(p + (optr+1)*p^(optr/(optr+1)))
       } else {
         
-        if(optimization$s > n | optimization$value > n | optimization$convcode == 1) {
+        if(optimization$s > n | optimization$r < 1 | optimization$value > n | optimization$convcode == 1) {
           theo = n
           opts = 1
         } else {

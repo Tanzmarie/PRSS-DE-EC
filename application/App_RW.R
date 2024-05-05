@@ -10,12 +10,12 @@ dt = data[which(data$Landkreis_id == "02000"),]
 
 dt$prevalence = ((dt$`Inzidenz_7-Tage`/7) * 14)/100000
 
-
-tests = lapply(X = dt$prevalence, calculate_tests, n = 1000, sims = 10)
+set.seed(444)
+tests = lapply(X = dt$prevalence, calculate_tests, n = 1000, sims = 50)
 
 
 # Calculating Economic Costs
-res = c(79.83803,87.35672,95.58348)
+res = c(80.64042,87.35672,95.58348)
 
 # Paramater values
 n = 1000
@@ -57,9 +57,6 @@ for (h in h_values) {
     u_current_tau = utau[[i]]
     current_omega = omega[[i]]
     
-    # Calculate k based on your data (adjust as needed)
-    k_cur = k[i]
-    
     # Call calculateEconomicCosts for the current time point and h value
     current_costs = calculateEconomicCosts(cv, cm, cp, cl, current_tau, tau0, h, current_omega, n, mu, co)
     l_current_costs = calculateEconomicCosts(cv, cm, cp, cl, l_current_tau, tau0, h, current_omega, n, mu, co)
@@ -92,7 +89,7 @@ result_costs = do.call(rbind, lapply(names(economic_costs_list), function(h) {
 
 result_costs2 = do.call(rbind, lapply(names(l_economic_costs_list), function(h) {
   data.frame(
-    Time = rep(seq_along(economic_costs_list[[h]]), each = nrow(l_economic_costs_list[[h]][[1]])),
+    Time = rep(seq_along(l_economic_costs_list[[h]]), each = nrow(l_economic_costs_list[[h]][[1]])),
     Algorithm = rep(l_economic_costs_list[[h]][[1]][, "Algorithm"], times = length(l_economic_costs_list[[h]])),
     DC = unlist(lapply(l_economic_costs_list[[h]], function(result) result[, "DC"])),
     CS = unlist(lapply(l_economic_costs_list[[h]], function(result) result[, "CS"])),
@@ -145,17 +142,25 @@ lowest_costs3$Costs = lowest_costs3$Upper
 
 # Plotting with facet_wrap
 x11()
+algorithm_colors =  c("Individual" = "black",
+                      "Dorfman" = "green",
+                      "Double-Pooling" = "blue",
+                      "R-Pooling" = "cyan2",
+                      "3-Stage" = "red",
+                      "4-Stage" = "darkgoldenrod"
+)
 ggplot(result_costs, aes(x = Time, y = Costs, color = Algorithm)) +
-  geom_line(data = lowest_costs, aes(group = 1), size = 0.1) +
-  geom_line(data = lowest_costs2, aes(group = 1), size = 0.5, alpha = 0.5) +
-  geom_line(data = lowest_costs3, aes(group = 1), size = 0.5, alpha = 0.5) +
+  geom_line(data = lowest_costs, aes(group = 1), linewidth = 0.1) +
+  geom_line(data = lowest_costs2, aes(group = 1), linewidth = 0.5, alpha = 0.1) +
+  geom_line(data = lowest_costs3, aes(group = 1), linewidth = 0.5, alpha = 0.1) +
   facet_wrap(~ h, nrow = 3, ncol = 4, scales = "free_y", 
              labeller = labeller(h = function(value) paste0("h = ", value))) +
-  labs(title = "Evolution of economic cost per individual for the COVID-19 pandemic",
+  labs(title = "Progress of economic cost per individual for the COVID-19 pandemic",
        x = "Time in days",
        y = "Economic cost per individual") +
   theme_bw() +
   theme(legend.position = "right",
-        legend.key.size = unit(3, "lines"))
+        legend.key.size = unit(3, "lines")) +
+  scale_color_manual(values = algorithm_colors)
 
 

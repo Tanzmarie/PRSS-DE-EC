@@ -4,37 +4,35 @@ library(tidyverse)
 source("functions/tests.R")
 source("functions/costs.R")
 
-data <- read_csv("application/data/COVID-19-Faelle_7-Tage-Inzidenz_Landkreise.csv")
+data = read_csv("application/data/COVID-19-Faelle_7-Tage-Inzidenz_Landkreise.csv")
 dt = data[which(data$Landkreis_id == "02000"),]
 
 dt$prevalence = ((dt$`Inzidenz_7-Tage`/7) * 14)/100000
 
 
 # Calculating the expected number of tests
-
-tests = lapply(X = dt$prevalence, calculate_tests, n = 1000, sims = 10)
+set.seed(444)
+tests = lapply(X = dt$prevalence, calculate_tests, n = 1000, sims = 50)
 
 
 # Calculating economic costs
-res = c(79.83803,87.35672,95.58348)
+res = c(80.64042,87.35672,95.58348)
 
 # Costs
-n <- 1000
-cv <- 1000
-cp <- 50  
-cm_values <- c(0, 10, 25, 50, 100, 200)  
-cl <- 25
-tau0 <- 850
+n = 1000
+cv = 1000
+cp = 50  
+cm_values = c(0, 10, 25, 50, 100, 200)  
+cl = 25
+tau0 = 750
 
 tau = lapply(tests, function(mat) mat[, "Tests"])
 ltau = lapply(tests, function(mat) mat[, "Lower"])
 utau = lapply(tests, function(mat) mat[, "Upper"])
 omega = lapply(tests, function(mat) mat[, "Duration"])
-k = unlist(round(n * dt$prevalence))
-
-mu <- res[2]
-co <- 150
-h <- 0.5
+mu = res[2]
+co = 150
+h = 0.5
 
 # Define a list to store the results for each h
 economic_costs_list = list()
@@ -145,17 +143,25 @@ lowest_costs3$Costs = lowest_costs3$Upper
 
 # Plotting with facet_wrap
 x11()
+algorithm_colors =  c("Individual" = "black",
+                      "Dorfman" = "green",
+                      "Double-Pooling" = "blue",
+                      "R-Pooling" = "cyan2",
+                      "3-Stage" = "red",
+                      "4-Stage" = "darkgoldenrod"
+)
 ggplot(result_costs, aes(x = Time, y = Costs, color = Algorithm)) +
-  geom_line(data = lowest_costs, aes(group = 1), size = 0.1) +
-  geom_line(data = lowest_costs2, aes(group = 1), size = 0.5, alpha = 0.1) +
-  geom_line(data = lowest_costs3, aes(group = 1), size = 0.5, alpha = 0.1) +
-  facet_wrap(~ cm, nrow = 3, ncol = 2, scales = "free_y", 
+  geom_line(data = lowest_costs, aes(group = 1), linewidth = 0.1) +
+  geom_line(data = lowest_costs2, aes(group = 1), linewidth = 0.5, alpha = 0.1) +
+  geom_line(data = lowest_costs3, aes(group = 1), linewidth = 0.5, alpha = 0.1) +
+  facet_wrap(~ cm, nrow = 3, ncol = 3, scales = "free_y", 
              labeller = labeller(cm = function(value) paste0("cm = ", value))) +
-  labs(title = "Evolution of economic cost per individual for the COVID-19 pandemic",
+  labs(title = "Progress of economic cost per individual for the COVID-19 pandemic",
        x = "Time in days",
        y = "Economic cost per individual") +
   theme_bw() +
   theme(legend.position = "right",
-        legend.key.size = unit(3, "lines"))
+        legend.key.size = unit(3, "lines")) +
+  scale_color_manual(values = algorithm_colors)
 
 

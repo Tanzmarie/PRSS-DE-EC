@@ -21,7 +21,7 @@ ggplot(hamburg, aes(x = Meldedatum, y = prevalence)) +
 summary(hamburg$prevalence)
 
 # Calculate Tests
-
+set.seed(444)
 tests = lapply(X = hamburg$prevalence, calculate_tests, n = 1000, sims = 10)
 
 # Convert the list of matrices to a data frame

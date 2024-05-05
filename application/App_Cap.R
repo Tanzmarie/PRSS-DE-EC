@@ -8,12 +8,13 @@ data <- read_csv("application/data/COVID-19-Faelle_7-Tage-Inzidenz_Landkreise.cs
 dt = data[which(data$Landkreis_id == "02000"),]
 dt$prevalence = ((dt$`Inzidenz_7-Tage`/7) * 14)/100000
 
-tests = lapply(X = dt$prevalence, calculate_tests, n = 1000, sims = 10)
+set.see(444)
+tests = lapply(X = dt$prevalence, calculate_tests, n = 1000, sims = 50)
 
 
 
 # Calculating economic costs
-res = c(79.83803,87.35672,95.58348)
+res = c(80.64042,87.35672,95.58348)
 
 # Costs
 n <- 1000
@@ -29,7 +30,6 @@ tau = lapply(tests, function(mat) mat[, "Tests"])
 ltau = lapply(tests, function(mat) mat[, "Lower"])
 utau = lapply(tests, function(mat) mat[, "Upper"])
 omega = lapply(tests, function(mat) mat[, "Duration"])
-k = unlist(round(n * dt$prevalence))
 
 
 # Define testing capacity values
@@ -144,17 +144,26 @@ lowest_costs3$Costs = lowest_costs3$Upper
 
 # Plotting with facet_wrap
 x11()
+algorithm_colors =  c("Individual" = "black",
+                      "Dorfman" = "green",
+                      "Double-Pooling" = "blue",
+                      "R-Pooling" = "cyan2",
+                      "3-Stage" = "red",
+                      "4-Stage" = "darkgoldenrod"
+)
 ggplot(result_costs, aes(x = Time, y = Costs, color = Algorithm)) +
   geom_line(data = lowest_costs, aes(group = 1), linewidth = 0.1) +
-  geom_line(data = lowest_costs2, aes(group = 1), linewidth = 0.5, alpha = 0.5) +
-  geom_line(data = lowest_costs3, aes(group = 1), linewidth = 0.5, alpha = 0.5) +
-  facet_wrap(~ tau0, nrow = 3, ncol = 2, scales = "free_y", 
+  geom_line(data = lowest_costs2, aes(group = 1), linewidth = 0.5, alpha = 0.1) +
+  geom_line(data = lowest_costs3, aes(group = 1), linewidth = 0.5, alpha = 0.1) +
+  facet_wrap(~ tau0, nrow = 3, ncol = 3, scales = "free_y", 
              labeller = labeller(tau0 = function(value) paste0("tau0 = ", value))) +
-  labs(title = "Progress of economic cost perindividual for the COVID-19 pandemic",
+  labs(title = "Progress of economic cost per individual for the COVID-19 pandemic",
        x = "Time in days",
        y = "Economic cost per individual") +
   theme_bw() +
   theme(legend.position = "right",
-        legend.key.size = unit(3, "lines"))
+        legend.key.size = unit(3, "lines")) +
+  scale_color_manual(values = algorithm_colors)
+
 
 
