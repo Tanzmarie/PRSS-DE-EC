@@ -20,19 +20,20 @@ res = c(80.64042,87.35672,95.58348)
 
 # Costs
 n = 1000
-cv = 1000
-cp = 50  
-cm_values = c(0, 10, 25, 50, 100, 200)  
-cl = 25
+cf = 1000
 tau0 = 750
+cl = 150
+mu = res[2]
+h = 0.5
+
+cv_values = c(0, 10, 25, 50, 100, 200)  
+
 
 tau = lapply(tests, function(mat) mat[, "Tests"])
 ltau = lapply(tests, function(mat) mat[, "Lower"])
 utau = lapply(tests, function(mat) mat[, "Upper"])
 omega = lapply(tests, function(mat) mat[, "Duration"])
-mu = res[2]
-co = 150
-h = 0.5
+
 
 # Define a list to store the results for each h
 economic_costs_list = list()
@@ -40,7 +41,7 @@ l_economic_costs_list = list()
 u_economic_costs_list = list()
 
 # Iterate over h values
-for (cm in cm_values) {
+for (cv in cv_values) {
   # Define a list to store the results for each time point
   result_costs_list = list()
   result_costs_list2 = list()
@@ -55,13 +56,11 @@ for (cm in cm_values) {
     u_current_tau = utau[[i]]
     current_omega = omega[[i]]
     
-    # Calculate k based on your data (adjust as needed)
-    k_cur = k[i]
-    
     # Call calculateEconomicCosts for the current time point and h value
-    current_costs = calculateEconomicCosts(cv, cm, cp, cl, current_tau, tau0, h, current_omega, n, mu, co)
-    l_current_costs = calculateEconomicCosts(cv, cm, cp, cl, l_current_tau, tau0, h, current_omega, n, mu, co)
-    u_current_costs = calculateEconomicCosts(cv, cm, cp, cl, u_current_tau, tau0, h, current_omega, n, mu, co)
+    current_costs = calculateEconomicCosts(cf, cv, cl, current_tau, tau0, h, current_omega, n, mu)
+    l_current_costs = calculateEconomicCosts(cf, cv, cl, l_current_tau, tau0, h, current_omega, n, mu)
+    u_current_costs = calculateEconomicCosts(cf, cv, cl, u_current_tau, tau0, h, current_omega, n, mu)
+    
     
     # Store the result in the list
     result_costs_list[[i]] = current_costs
@@ -70,43 +69,43 @@ for (cm in cm_values) {
   }
   
   # Store the results for this h value
-  economic_costs_list[[as.character(cm)]] = result_costs_list
-  l_economic_costs_list[[as.character(cm)]] = result_costs_list2
-  u_economic_costs_list[[as.character(cm)]] = result_costs_list3
+  economic_costs_list[[as.character(cv)]] = result_costs_list
+  l_economic_costs_list[[as.character(cv)]] = result_costs_list2
+  u_economic_costs_list[[as.character(cv)]] = result_costs_list3
 }
 
 # Combine the results for different h values
-result_costs = do.call(rbind, lapply(names(economic_costs_list), function(cm) {
+result_costs = do.call(rbind, lapply(names(economic_costs_list), function(cv) {
   data.frame(
-    Time = rep(seq_along(economic_costs_list[[cm]]), each = nrow(economic_costs_list[[cm]][[1]])),
-    Algorithm = rep(economic_costs_list[[cm]][[1]][, "Algorithm"], times = length(economic_costs_list[[cm]])),
-    DC = unlist(lapply(economic_costs_list[[cm]], function(result) result[, "DC"])),
-    CS = unlist(lapply(economic_costs_list[[cm]], function(result) result[, "CS"])),
-    Costs = unlist(lapply(economic_costs_list[[cm]], function(result) result[, "Costs"])),
-    cm = rep(as.numeric(cm), each = nrow(economic_costs_list[[cm]][[1]]))
+    Time = rep(seq_along(economic_costs_list[[cv]]), each = nrow(economic_costs_list[[cv]][[1]])),
+    Algorithm = rep(economic_costs_list[[cv]][[1]][, "Algorithm"], times = length(economic_costs_list[[cv]])),
+    DC = unlist(lapply(economic_costs_list[[cv]], function(result) result[, "DC"])),
+    CS = unlist(lapply(economic_costs_list[[cv]], function(result) result[, "CS"])),
+    Costs = unlist(lapply(economic_costs_list[[cv]], function(result) result[, "Costs"])),
+    cv = rep(as.numeric(cv), each = nrow(economic_costs_list[[cv]][[1]]))
   )
 }))
 
 
-result_costs2 = do.call(rbind, lapply(names(l_economic_costs_list), function(cm) {
+result_costs2 = do.call(rbind, lapply(names(l_economic_costs_list), function(cv) {
   data.frame(
-    Time = rep(seq_along(economic_costs_list[[cm]]), each = nrow(l_economic_costs_list[[cm]][[1]])),
-    Algorithm = rep(l_economic_costs_list[[cm]][[1]][, "Algorithm"], times = length(l_economic_costs_list[[cm]])),
-    DC = unlist(lapply(l_economic_costs_list[[cm]], function(result) result[, "DC"])),
-    CS = unlist(lapply(l_economic_costs_list[[cm]], function(result) result[, "CS"])),
-    Costs = unlist(lapply(l_economic_costs_list[[cm]], function(result) result[, "Costs"])),
-    cm = rep(as.numeric(cm), each = nrow(l_economic_costs_list[[cm]][[1]]))
+    Time = rep(seq_along(economic_costs_list[[cv]]), each = nrow(l_economic_costs_list[[cv]][[1]])),
+    Algorithm = rep(l_economic_costs_list[[cv]][[1]][, "Algorithm"], times = length(l_economic_costs_list[[cv]])),
+    DC = unlist(lapply(l_economic_costs_list[[cv]], function(result) result[, "DC"])),
+    CS = unlist(lapply(l_economic_costs_list[[cv]], function(result) result[, "CS"])),
+    Costs = unlist(lapply(l_economic_costs_list[[cv]], function(result) result[, "Costs"])),
+    cv = rep(as.numeric(cv), each = nrow(l_economic_costs_list[[cv]][[1]]))
   )
 }))
 
-result_costs3 = do.call(rbind, lapply(names(u_economic_costs_list), function(cm) {
+result_costs3 = do.call(rbind, lapply(names(u_economic_costs_list), function(cv) {
   data.frame(
-    Time = rep(seq_along(economic_costs_list[[cm]]), each = nrow(u_economic_costs_list[[cm]][[1]])),
-    Algorithm = rep(u_economic_costs_list[[cm]][[1]][, "Algorithm"], times = length(u_economic_costs_list[[cm]])),
-    DC = unlist(lapply(u_economic_costs_list[[cm]], function(result) result[, "DC"])),
-    CS = unlist(lapply(u_economic_costs_list[[cm]], function(result) result[, "CS"])),
-    Costs = unlist(lapply(u_economic_costs_list[[cm]], function(result) result[, "Costs"])),
-    cm = rep(as.numeric(cm), each = nrow(u_economic_costs_list[[cm]][[1]]))
+    Time = rep(seq_along(economic_costs_list[[cv]]), each = nrow(u_economic_costs_list[[cv]][[1]])),
+    Algorithm = rep(u_economic_costs_list[[cv]][[1]][, "Algorithm"], times = length(u_economic_costs_list[[cv]])),
+    DC = unlist(lapply(u_economic_costs_list[[cv]], function(result) result[, "DC"])),
+    CS = unlist(lapply(u_economic_costs_list[[cv]], function(result) result[, "CS"])),
+    Costs = unlist(lapply(u_economic_costs_list[[cv]], function(result) result[, "Costs"])),
+    cv = rep(as.numeric(cv), each = nrow(u_economic_costs_list[[cv]][[1]]))
   )
 }))
 
@@ -116,21 +115,21 @@ result_costs$Upper = result_costs3$Costs
 
 # Filter the data to keep only the lowest cost line for each facet
 lowest_costs = result_costs %>%
-  group_by(cm, Time) %>%
+  group_by(cv, Time) %>%
   filter(Costs == min(Costs, na.rm = TRUE)) %>%
   arrange("Individual") %>%  
   slice(1) %>%
   ungroup()
 
 lowest_costs2 = result_costs %>%
-  group_by(cm, Time) %>%
+  group_by(cv, Time) %>%
   filter(Lower == min(Lower, na.rm = TRUE)) %>%
   arrange("Individual") %>%  
   slice(1) %>%
   ungroup()
 
 lowest_costs3 = result_costs %>%
-  group_by(cm, Time) %>%
+  group_by(cv, Time) %>%
   filter(Upper == min(Upper, na.rm = TRUE)) %>%
   arrange("Individual") %>%  
   slice(1) %>%
@@ -154,8 +153,8 @@ ggplot(result_costs, aes(x = Time, y = Costs, color = Algorithm)) +
   geom_line(data = lowest_costs, aes(group = 1), linewidth = 0.1) +
   geom_line(data = lowest_costs2, aes(group = 1), linewidth = 0.5, alpha = 0.1) +
   geom_line(data = lowest_costs3, aes(group = 1), linewidth = 0.5, alpha = 0.1) +
-  facet_wrap(~ cm, nrow = 3, ncol = 3, scales = "free_y", 
-             labeller = labeller(cm = function(value) paste0("cm = ", value))) +
+  facet_wrap(~ cv, nrow = 3, ncol = 3, scales = "free_y", 
+             labeller = labeller(cv = function(value) paste0("cv = ", value))) +
   labs(title = "Progress of economic cost per individual for the COVID-19 pandemic",
        x = "Time in days",
        y = "Economic cost per individual") +

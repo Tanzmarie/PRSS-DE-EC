@@ -19,22 +19,21 @@ res = c(80.64042,87.35672,95.58348)
 
 # Paramater values
 n = 1000
-cv = 1000
-cm = 25
-cp = 50
-cl = 25
+cf = 1000
+cv = 150
 tau0 = 750
+cl = 150
+mu = res[2]
 
 tau = lapply(tests, function(mat) mat[, "Tests"])
 ltau = lapply(tests, function(mat) mat[, "Lower"])
 utau = lapply(tests, function(mat) mat[, "Upper"])
 omega = lapply(tests, function(mat) mat[, "Duration"])
-k = unlist(round(n * dt$prevalence))
 
-mu = res[2]
-co = 150
 
-h_values = seq(0,1,by = 0.1)
+
+
+h_values = c(0,0.4,0.6,0.8,0.9,1)
 
 # Define a list to store the results for each h
 economic_costs_list = list()
@@ -58,9 +57,9 @@ for (h in h_values) {
     current_omega = omega[[i]]
     
     # Call calculateEconomicCosts for the current time point and h value
-    current_costs = calculateEconomicCosts(cv, cm, cp, cl, current_tau, tau0, h, current_omega, n, mu, co)
-    l_current_costs = calculateEconomicCosts(cv, cm, cp, cl, l_current_tau, tau0, h, current_omega, n, mu, co)
-    u_current_costs = calculateEconomicCosts(cv, cm, cp, cl, u_current_tau, tau0, h, current_omega, n, mu, co)
+    current_costs = calculateEconomicCosts(cf, cv, cl, current_tau, tau0, h, current_omega, n, mu)
+    l_current_costs = calculateEconomicCosts(cf, cv, cl, l_current_tau, tau0, h, current_omega, n, mu)
+    u_current_costs = calculateEconomicCosts(cf, cv, cl, u_current_tau, tau0, h, current_omega, n, mu)
     
     # Store the result in the list
     result_costs_list[[i]] = current_costs
@@ -153,7 +152,7 @@ ggplot(result_costs, aes(x = Time, y = Costs, color = Algorithm)) +
   geom_line(data = lowest_costs, aes(group = 1), linewidth = 0.1) +
   geom_line(data = lowest_costs2, aes(group = 1), linewidth = 0.5, alpha = 0.1) +
   geom_line(data = lowest_costs3, aes(group = 1), linewidth = 0.5, alpha = 0.1) +
-  facet_wrap(~ h, nrow = 3, ncol = 4, scales = "free_y", 
+  facet_wrap(~ h, nrow = 3, ncol = 3, scales = "free_y", 
              labeller = labeller(h = function(value) paste0("h = ", value))) +
   labs(title = "Progress of economic cost per individual for the COVID-19 pandemic",
        x = "Time in days",

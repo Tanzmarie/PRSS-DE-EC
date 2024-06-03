@@ -634,7 +634,7 @@ calculate_tests = function(n,p,sims = 0) {
       w3 = 24
     }
     
-    qt = (w1 + (1-(1-p)^opts1)*w2 + ((1-(1-p)^opts1) * (1-(1-p)^opts2)) * w3) / 24
+    qt = (w1 + (1-(1-p)^opts1)* w2 +  (1-(1-p)^opts2) * w3) / 24
     
     df = data.frame("n" = n,
                     "p" = p,
@@ -785,7 +785,7 @@ calculate_tests = function(n,p,sims = 0) {
       w4 = 24
     }
     
-    qt = (w1 + (1-(1-p)^opts1)*w2 + (1-(1-p)^opts1) * (1-(1-p)^opts2) * w3 + (1-(1-p)^opts1) * (1-(1-p)^opts2) * (1-(1-p)^opts3) * w4 ) / 24
+    qt = (w1 + (1-(1-p)^opts1)*w2 + (1-(1-p)^opts2) * w3 + (1-(1-p)^opts3) * w4 ) / 24
     
     
     df = data.frame("n" = n,
@@ -803,8 +803,8 @@ calculate_tests = function(n,p,sims = 0) {
   
   Tests = rbind(individual(n),
                 dorfman(n,p,sims),
-                grid(n,p,sims),
-                rpooling(n,p,sims),
+                #grid(n,p,sims),
+                #rpooling(n,p,sims),
                 three(n,p, sims),
                 four(n,p, sims))
   

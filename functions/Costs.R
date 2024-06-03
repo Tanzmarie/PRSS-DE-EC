@@ -1,12 +1,12 @@
-calculateEconomicCosts = function(cv, cm, cp, cl, tau, tau0, h, omega, n, mu, co) {
+calculateEconomicCosts = function(cf, cv, cl, tau, tau0, h, omega, n, mu) {
   # Deterministic costs
-  DC = ifelse(tau0 < tau, cv + tau0 * (cm + cp + cl), cv + tau * (cm + cp + cl))
+  DC = ifelse(tau0 < tau, cf + tau0 * cv, cf + tau * cv)
   
   # Stochastic costs
   CS = (1-h) * omega * n  * mu
   
   # Outsource cost
-  CO = ifelse(tau0 < tau, (tau - tau0) * co, 0)
+  CO = ifelse(tau0 < tau, (tau - tau0) * cl, 0)
   
   # Total costs
   TotalCosts = DC + CS + CO
@@ -15,8 +15,8 @@ calculateEconomicCosts = function(cv, cm, cp, cl, tau, tau0, h, omega, n, mu, co
   Costs = data.frame(
     Algorithm = c("Individual",
                   "Dorfman",
-                  "Double-Pooling",
-                  "R-Pooling",
+                  #"Double-Pooling",
+                  #"R-Pooling",
                   "3-Stage",
                   "4-Stage"),
     DC = DC/n,

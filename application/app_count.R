@@ -52,14 +52,12 @@ res = c(80.64042,87.35672,95.58348)
 
 # Costs
 n = 1000
-cv = 1000
-cm = 25
-cp = 50
-cl = 25
+cf = 1000
+cv = 150
 tau0 = 750
-h = 0.5
+cl = 150
 mu = res[2]
-co = 150
+h  = 0.5
 
 
 
@@ -91,9 +89,10 @@ for (loc_index in locations) {
     
     
     # Call calculateEconomicCosts for the current time point and fixed h value
-    current_costs <- calculateEconomicCosts(cv, cm, cp, cl, current_tau, tau0, h, current_omega, n, mu, co)
-    l_current_costs = calculateEconomicCosts(cv, cm, cp, cl, l_current_tau, tau0, h, current_omega, n, mu, co)
-    u_current_costs = calculateEconomicCosts(cv, cm, cp, cl, u_current_tau, tau0, h, current_omega, n, mu, co)
+    current_costs = calculateEconomicCosts(cf, cv, cl, current_tau, tau0, h, current_omega, n, mu)
+    l_current_costs = calculateEconomicCosts(cf, cv, cl, l_current_tau, tau0, h, current_omega, n, mu)
+    u_current_costs = calculateEconomicCosts(cf, cv, cl, u_current_tau, tau0, h, current_omega, n, mu)
+    
     
     # Store the result in the list
     result_costs_list[[i]] <- current_costs
