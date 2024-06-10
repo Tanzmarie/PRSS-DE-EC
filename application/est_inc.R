@@ -40,17 +40,16 @@ dt <- dt %>%
 hb <- dt %>%
   filter(l11101 == 2)
 
-hb = hb %>%
-    filter(dailyinc < 1000)
 
 hb <- list(N = nrow(hb), CS = hb$dailyinc)
 
 rm(dt,inc,loc,pequiv,pgen)
-  
+
+
 # Define the Stan model
 stan_model = "
 data {
-  int<lower=1> N;             
+  int N;             
   vector[N] CS;              
 }
 
@@ -58,7 +57,9 @@ parameters {
   real mu;           
   real<lower=0> sigma;        
   real w;
-  real<lower=0> p; 
+  real<lower=0> p;
+  real a;
+  real<lower=0> b; 
 }
 
 model {
@@ -69,13 +70,16 @@ model {
   mu ~ normal(w, p); 
   
   // Stage 2: Prior for sigma
-   sigma ~ cauchy(0, 3); 
+   sigma ~ cauchy(a,b); 
   
   // Stage 3: Prior for w
    w ~ normal(0, 1);          
   
   // Stage 3: Prior for p2
-  p ~ inv_gamma(1, 1);   
+  p ~ cauchy(0,5);   
+  
+  a ~ normal(0, 1);
+  b ~ cauchy(0,5);
 }
 "
 
@@ -83,10 +87,14 @@ model {
 compiled_model = stan_model(model_code = stan_model)
 
 # Run the MCMC sampler seed = 2000, if excluded seed = 3049
-fit = sampling(compiled_model, data = hb, chains = 4, iter = 2000, warmup = 1000, thin = 1, control = list(adapt_delta = 0.8))
+fit = sampling(compiled_model, data = hb, chains = 4, iter = 4000, warmup = 1000, thin = 1, control = list(adapt_delta = 0.8))
 fit
-rlnorm(1000,meanlog = 4.45, sdlog = 0.95)
-mean(rlnorm(1000,meanlog = 4.45, sdlog = 0.95))
+get_posterior_mean(fit)
+test = get_sampler_params(fit)
+
+exp(4.39 + (0.98/2))
+exp(4.47 + (0.98/2))
+exp(4.56 + (0.98/2))
 
 # Print summary of the results
 print(fit)

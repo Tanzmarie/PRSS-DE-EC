@@ -22,12 +22,11 @@ summary(hamburg$prevalence)
 
 # Calculate Tests
 set.seed(444)
-tests = lapply(X = hamburg$prevalence, calculate_tests, n = 1000, sims = 10)
+tests = lapply(X = hamburg$prevalence, calculate_tests, n = 1000, sims = 5)
 
 # Convert the list of matrices to a data frame
 
-result_df <- do.call(rbind, lapply(seq_along(tests), function(i) {
-  data.frame(
+result_df <- do.call(rbind, lapply(seq_along(tests), function(i) {data.frame(
     Time = i,
     Algorithm = tests[[i]][1],
     Theoretical = tests[[i]][,"Theoretical"],

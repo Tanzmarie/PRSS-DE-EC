@@ -10,18 +10,22 @@ dt = data[which(data$Landkreis_id == "02000"),]
 dt$prevalence = ((dt$`Inzidenz_7-Tage`/7) * 14)/100000
 
 # Initialize a list to store the results for each location
+num_cores = detectCores() - 1
+cl = makeCluster(num_cores)
+registerDoParallel(cl)
+plan(multisession, workers = detectCores() - 1)
+
 n = c(50,100,500,1000)
 
 tests_list <- list()
 
 
 # Loop over locations
-set.seed(444)
 for (i in n) {
   
   
   # Calculate the number of tests
-  tests <- lapply(X = dt$prevalence, calculate_tests, n = i, sims = 50)
+  tests <- future_map(dt$prevalence, calculate_tests, n = i, sims = 10)
   
   
   
@@ -130,24 +134,15 @@ result_costs$Upper = result_costs3$Costs
 # Filter the cov_dat to keep only the lowest cost line for each facet
 lowest_costs <- result_costs %>%
   group_by(n, Time) %>%
-  filter(Costs == min(Costs, na.rm = TRUE)) %>%
-  arrange("Individual") %>%  
-  slice(1) %>%
-  ungroup()
+  filter(Costs == min(Costs))
 
 lowest_costs2 = result_costs %>%
   group_by(n, Time) %>%
-  filter(Lower == min(Lower, na.rm = TRUE)) %>%
-  arrange("Individual") %>%  
-  slice(1) %>%
-  ungroup()
+  filter(Lower == min(Lower)) 
 
 lowest_costs3 = result_costs %>%
   group_by(n, Time) %>%
-  filter(Upper == min(Upper, na.rm = TRUE)) %>%
-  arrange("Individual") %>%  
-  slice(1) %>%
-  ungroup()
+  filter(Upper == min(Upper))
 
 lowest_costs2$Costs = lowest_costs2$Lower
 lowest_costs3$Costs = lowest_costs3$Upper
@@ -155,14 +150,12 @@ lowest_costs3$Costs = lowest_costs3$Upper
 # Plotting
 
 x11()
-algorithm_colors =  c("Individual" = "black",
-                      "Dorfman" = "green",
-                      "Double-Pooling" = "blue",
-                      "R-Pooling" = "cyan2",
-                      "3-Stage" = "red",
-                      "4-Stage" = "darkgoldenrod"
+algorithm_colors =  c("One-stage" = "black",
+                      "Two-stage" = "green",
+                      "Three-stage" = "blue",
+                      "Four-stage" = "darkgoldenrod",
+                      "Five-stage" = "red"
 )
-
 ggplot(result_costs, aes(x = Time, y = Costs, color = Algorithm)) +
   geom_line(data = lowest_costs, aes(group = 1), linewidth = 0.1) +
   geom_line(data = lowest_costs2, aes(group = 1), linewidth = 0.5, alpha = 0.1) +

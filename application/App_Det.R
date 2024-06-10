@@ -11,8 +11,15 @@ dt$prevalence = ((dt$`Inzidenz_7-Tage`/7) * 14)/100000
 
 
 # Calculating the expected number of tests
-set.seed(444)
-tests = lapply(X = dt$prevalence, calculate_tests, n = 1000, sims = 50)
+num_cores = detectCores() - 1
+cl = makeCluster(num_cores)
+registerDoParallel(cl)
+plan(multisession, workers = detectCores() - 1)
+
+tests = future_map(dt$prevalence, calculate_tests, n = 1000, sims = 10)
+
+stopCluster(cl)
+
 
 
 # Calculating economic costs
@@ -26,7 +33,7 @@ cl = 150
 mu = res[2]
 h = 0.5
 
-cv_values = c(0, 10, 25, 50, 100, 200)  
+cv_values = c(0, 50, 100, 200, 300, 400)  
 
 
 tau = lapply(tests, function(mat) mat[, "Tests"])
@@ -116,25 +123,15 @@ result_costs$Upper = result_costs3$Costs
 # Filter the data to keep only the lowest cost line for each facet
 lowest_costs = result_costs %>%
   group_by(cv, Time) %>%
-  filter(Costs == min(Costs, na.rm = TRUE)) %>%
-  arrange("Individual") %>%  
-  slice(1) %>%
-  ungroup()
+  filter(Costs == min(Costs))
 
 lowest_costs2 = result_costs %>%
   group_by(cv, Time) %>%
-  filter(Lower == min(Lower, na.rm = TRUE)) %>%
-  arrange("Individual") %>%  
-  slice(1) %>%
-  ungroup()
+  filter(Lower == min(Lower)) 
 
 lowest_costs3 = result_costs %>%
   group_by(cv, Time) %>%
-  filter(Upper == min(Upper, na.rm = TRUE)) %>%
-  arrange("Individual") %>%  
-  slice(1) %>%
-  ungroup()
-
+  filter(Upper == min(Upper))
 
 
 lowest_costs2$Costs = lowest_costs2$Lower
@@ -142,17 +139,16 @@ lowest_costs3$Costs = lowest_costs3$Upper
 
 # Plotting with facet_wrap
 x11()
-algorithm_colors =  c("Individual" = "black",
-                      "Dorfman" = "green",
-                      "Double-Pooling" = "blue",
-                      "R-Pooling" = "cyan2",
-                      "3-Stage" = "red",
-                      "4-Stage" = "darkgoldenrod"
+algorithm_colors =  c("One-stage" = "black",
+                      "Two-stage" = "green",
+                      "Three-stage" = "blue",
+                      "Four-stage" = "darkgoldenrod",
+                      "Five-stage" = "red"
 )
 ggplot(result_costs, aes(x = Time, y = Costs, color = Algorithm)) +
   geom_line(data = lowest_costs, aes(group = 1), linewidth = 0.1) +
-  geom_line(data = lowest_costs2, aes(group = 1), linewidth = 0.5, alpha = 0.1) +
-  geom_line(data = lowest_costs3, aes(group = 1), linewidth = 0.5, alpha = 0.1) +
+  #geom_line(data = lowest_costs2, aes(group = 1), linewidth = 0.5, alpha = 0.1) +
+  #geom_line(data = lowest_costs3, aes(group = 1), linewidth = 0.5, alpha = 0.1) +
   facet_wrap(~ cv, nrow = 3, ncol = 3, scales = "free_y", 
              labeller = labeller(cv = function(value) paste0("cv = ", value))) +
   labs(title = "Progress of economic cost per individual for the COVID-19 pandemic",

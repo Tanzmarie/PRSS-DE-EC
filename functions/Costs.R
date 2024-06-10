@@ -1,4 +1,9 @@
 calculateEconomicCosts = function(cf, cv, cl, tau, tau0, h, omega, n, mu) {
+  
+  if(tau[1] == 1) {
+    DC = CS = CO = TotalCosts = NA
+  } else {
+  
   # Deterministic costs
   DC = ifelse(tau0 < tau, cf + tau0 * cv, cf + tau * cv)
   
@@ -11,14 +16,15 @@ calculateEconomicCosts = function(cf, cv, cl, tau, tau0, h, omega, n, mu) {
   # Total costs
   TotalCosts = DC + CS + CO
   
+  }
+  
   # Create a data frame
   Costs = data.frame(
-    Algorithm = c("Individual",
-                  "Dorfman",
-                  #"Double-Pooling",
-                  #"R-Pooling",
-                  "3-Stage",
-                  "4-Stage"),
+    Algorithm = c("One-stage",
+                  "Two-stage",
+                  "Three-stage",
+                  "Four-stage",
+                  "Five-stage"),
     DC = DC/n,
     CS = CS/n,
     CO = CO/n,
@@ -27,3 +33,4 @@ calculateEconomicCosts = function(cf, cv, cl, tau, tau0, h, omega, n, mu) {
   
   return(Costs)
 }
+
