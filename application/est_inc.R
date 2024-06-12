@@ -6,7 +6,6 @@ library(readr)
 
 # Parallel Computing
 options(mc.cores = parallel::detectCores())
-parallel:::setDefaultClusterOptions(setup_strategy = "sequential")
 
 
 # Import data sets
@@ -39,6 +38,20 @@ dt <- dt %>%
 
 hb <- dt %>%
   filter(l11101 == 2)
+
+# Plot density and histogram
+
+ggplot(hb, aes(x=dailyinc)) + 
+  geom_histogram(aes(y=..density..), fill="white", color="black", bins=60) +  
+  geom_density(alpha=0.2, fill="#FF6666") +  
+  labs(title = "Histogram and kernel density of incomes in Hamburg",
+       x = "Daily incomes",
+       y = "Density") +
+  theme_bw() 
+
+# Calculate MLE estimate
+mean(log(hb$dailyinc))
+exp(mean(log(hb$dailyinc)) + var(log(hb$dailyinc))/2)
 
 
 hb <- list(N = nrow(hb), CS = hb$dailyinc)
@@ -76,9 +89,9 @@ model {
    w ~ normal(0, 1);          
   
   // Stage 3: Prior for p2
-  p ~ cauchy(0,5);   
+  p ~ cauchy(0,25);   
   
-  a ~ normal(0, 1);
+  a ~ normal(0,5);
   b ~ cauchy(0,5);
 }
 "
@@ -87,7 +100,7 @@ model {
 compiled_model = stan_model(model_code = stan_model)
 
 # Run the MCMC sampler seed = 2000, if excluded seed = 3049
-fit = sampling(compiled_model, data = hb, chains = 4, iter = 4000, warmup = 1000, thin = 1, control = list(adapt_delta = 0.8))
+fit = sampling(compiled_model, data = hb, chains = 4, iter = 10000, warmup = 1000, thin = 1, control = list(adapt_delta = 0.8))
 fit
 get_posterior_mean(fit)
 test = get_sampler_params(fit)
