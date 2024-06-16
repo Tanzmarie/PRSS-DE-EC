@@ -1,6 +1,7 @@
 library(readr)
 library(readxl)
 library(tidyverse)
+library(furrr)
 
 source("functions/tests.R")
 source("functions/costs.R")
@@ -43,7 +44,7 @@ for (i in locations) {
   
   
   # Calculate the number of tests
-  tests = future_map(dt$prevalence, calculate_tests, n = 1000, sims = 10)
+  tests = future_map(dt$prevalence, calculate_tests, n = 1000, sims = 10, seed = TRUE)
   
 
   
@@ -53,7 +54,7 @@ for (i in locations) {
 }
 
 # Calculating economic costs
-res = c(80.64042,87.35672,95.58348)
+res = c(exp(4.39 + (0.98/2)),exp(4.47 + (0.98/2)),exp(4.56 + (0.98/2)))
 
 # Costs
 n = 1000

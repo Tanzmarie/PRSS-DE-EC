@@ -1,5 +1,6 @@
 library(readr)
 library(tidyverse)
+library(furrr)
 
 source("functions/tests.R")
 source("functions/costs.R")
@@ -25,7 +26,7 @@ for (i in n) {
   
   
   # Calculate the number of tests
-  tests <- future_map(dt$prevalence, calculate_tests, n = i, sims = 10)
+  tests <- future_map(dt$prevalence, calculate_tests, n = i, sims = 50)
   
   
   
@@ -37,13 +38,13 @@ for (i in n) {
 
 
 # Calculating Economic Costs
-res = c(80.64042,87.35672,95.58348)
+res = c(exp(4.39 + (0.98/2)),exp(4.47 + (0.98/2)),exp(4.56 + (0.98/2)))
 
 # Paramater values
 cf = 1000
 cv = 150
 tau0 = 750
-cl = 150
+cl = 300
 mu = res[2]
 h = 0.5
 
@@ -162,7 +163,7 @@ ggplot(result_costs, aes(x = Time, y = Costs, color = Algorithm)) +
   geom_line(data = lowest_costs3, aes(group = 1), linewidth = 0.5, alpha = 0.1) +
   facet_wrap(~ n, nrow = 2, ncol = 2, scales = "free_y", 
              labeller = labeller(n = function(value) paste0("n = ", value))) +
-  labs(title = "Progress of economic cost per individual for the COVID-19 pandemic",
+  labs(title = "Progress of economic cost per individual for the COVID-19 pandemic in Hamburg",
        x = "Time in days",
        y = "Economic cost per individual") +
   theme_bw() +

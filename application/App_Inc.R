@@ -1,5 +1,6 @@
 library(readr)
 library(tidyverse)
+library(furrr)
 
 source("functions/Tests.R")
 source("functions/Costs.R")
@@ -15,7 +16,7 @@ cl = makeCluster(num_cores)
 registerDoParallel(cl)
 plan(multisession, workers = detectCores() - 1)
 
-tests = future_map(dt$prevalence, calculate_tests, n = 1000, sims = 10)
+tests = future_map(dt$prevalence, calculate_tests, n = 1000, sims = 50)
 
 stopCluster(cl)
 
@@ -23,7 +24,7 @@ stopCluster(cl)
 # Calculating economic costs
 
 # Extract mu values from Simulation of Incomes
-res = c(80.64042,87.35672,95.58348)
+res = c(exp(4.39 + (0.98/2)),exp(4.47 + (0.98/2)),exp(4.56 + (0.98/2)))
 
 # Costs
 n = 1000
@@ -31,7 +32,7 @@ cf = 1000
 cv = 150
 tau0 = 750
 h = 0.5
-cl = 150
+cl = 300
 
 tau = lapply(tests, function(mat) mat[, "Tests"])
 ltau = lapply(tests, function(mat) mat[, "Lower"])
@@ -112,8 +113,6 @@ result_costs3 = do.call(rbind, lapply(names(u_economic_costs_list), function(mu)
   )
 }))
 
-result_costs$Lower = result_costs2$Costs
-result_costs$Upper = result_costs3$Costs
 
 
 # Filter the data to keep only the lowest cost line for each facet
@@ -122,19 +121,15 @@ lowest_costs = result_costs %>%
   filter(Costs == min(Costs))
 
 
-lowest_costs2 = result_costs %>%
+lowest_costs2 = result_costs2 %>%
   group_by(mu, Time) %>%
-  filter(Lower == min(Lower))
+  filter(Costs == min(Costs))
 
 
-lowest_costs3 = result_costs %>%
+lowest_costs3 = result_costs3 %>%
   group_by(mu, Time) %>%
-  filter(Upper == min(Upper)) 
+  filter(Costs == min(Costs)) 
 
-
-
-lowest_costs2$Costs = lowest_costs2$Lower
-lowest_costs3$Costs = lowest_costs3$Upper
 
 # Plotting with facet_wrap
 x11()
@@ -146,11 +141,11 @@ algorithm_colors =  c("One-stage" = "black",
 )
 ggplot(result_costs, aes(x = Time, y = Costs, color = Algorithm)) +
   geom_line(data = lowest_costs, aes(group = 1), linewidth = 0.1) +
-  #geom_line(data = lowest_costs2, aes(group = 1), linewidth = 0.5, alpha = 0.1) +
-  #geom_line(data = lowest_costs3, aes(group = 1), linewidth = 0.5, alpha = 0.1) +
+  geom_line(data = lowest_costs2, aes(group = 1), linewidth = 0.5, alpha = 0.1) +
+  geom_line(data = lowest_costs3, aes(group = 1), linewidth = 0.5, alpha = 0.1) +
   facet_wrap(~ mu, nrow = 3, ncol = 1, scales = "free_y", 
              labeller = labeller(mu = function(value) paste0("mu = ", value))) +
-  labs(title = "Progress of economic cost per individual for the COVID-19 pandemic",
+  labs(title = "Progress of economic cost per individual for the COVID-19 pandemic in Hamburg",
        x = "Time in days",
        y = "Economic cost per individual") +
   theme_bw() +

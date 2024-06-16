@@ -22,14 +22,14 @@ stopCluster(cl)
 
 
 # Calculating Economic Costs
-res = c(80.64042,87.35672,95.58348)
+res = c(exp(4.39 + (0.98/2)),exp(4.47 + (0.98/2)),exp(4.56 + (0.98/2)))
 
 # Paramater values
 n = 1000
 cf = 1000
 cv = 150
 tau0 = 750
-cl = 150
+cl = 300
 mu = res[2]
 
 tau = lapply(tests, function(mat) mat[, "Tests"])
@@ -39,7 +39,6 @@ omega = lapply(tests, function(mat) mat[, "Duration"])
 
 
 
-h_values = seq(0,1,0.1)
 h_values = c(0,0.4,0.6,0.8,0.9,1)
 
 # Define a list to store the results for each h
@@ -115,8 +114,6 @@ result_costs3 = do.call(rbind, lapply(names(u_economic_costs_list), function(h) 
   )
 }))
 
-result_costs$Lower = result_costs2$Costs
-result_costs$Upper = result_costs3$Costs
 
 
 # Filter the data to keep only the lowest cost line for each facet
@@ -126,19 +123,18 @@ lowest_costs = result_costs %>%
 
 
 
-lowest_costs2 = result_costs %>%
+lowest_costs2 = result_costs2 %>%
   group_by(h, Time) %>%
-  filter(Lower == min(Lower))
+  filter(Costs == min(Costs))
 
 
-lowest_costs3 = result_costs %>%
+lowest_costs3 = result_costs3 %>%
   group_by(h, Time) %>%
-  filter(Upper == min(Upper))
+  filter(Costs == min(Costs))
 
 
 
-lowest_costs2$Costs = lowest_costs2$Lower
-lowest_costs3$Costs = lowest_costs3$Upper
+
 
 # Plotting with facet_wrap
 x11()
@@ -154,10 +150,10 @@ ggplot(result_costs, aes(x = Time, y = Costs, color = Algorithm)) +
   geom_line(data = lowest_costs3, aes(group = 1), linewidth = 0.5, alpha = 0.1) +
   facet_wrap(~ h, nrow = 5, ncol = 3, scales = "free_y", 
              labeller = labeller(h = function(value) paste0("h = ", value))) +
-  labs(title = "Progress of economic cost per individual for the COVID-19 pandemic",
+  labs(title = "Progress of economic cost per individual for the COVID-19 pandemic in Hamburg",
        x = "Time in days",
        y = "Economic cost per individual") +
-  scale_x_continuous(breaks = seq(0,1500,100), limits=c(0, 1500)) +
+  xlim(0,1500) +
   theme_bw() +
   theme(legend.position = "right",
         legend.key.size = unit(3, "lines")) +
