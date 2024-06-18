@@ -3,6 +3,7 @@ library(rstan)
 library(tidyverse)
 library(readr)
 library(maxLik)
+library(boot)
 
 
 # Parallel Computing
@@ -38,7 +39,7 @@ dt = dt %>%
   mutate(dailyinc = (pglabgro / (pgtatzeit / 5)) / 4.345)
 
 hb = dt %>%
-  filter(l11101 == 3)
+  filter(l11101 == 2)
 
 hb = hb %>% filter(pgnace2 > 0)
 
@@ -56,7 +57,7 @@ ggplot(hb, aes(x=dailyinc)) +
   theme_bw() 
 
 
-hb = list(N = nrow(hb), J = length(unique(hb$l11101)), K = max(hb$pgnace2), occ = hb$pgnace2, loc = hb$l11101, CS = hb$dailyinc)
+hb = list(N = nrow(hb), J = length(unique(hb$l11101)), loc = hb$l11101, CS = hb$dailyinc)
 
 # Calculate MLE estimate
 llf = function(params) {
@@ -68,38 +69,44 @@ llf = function(params) {
 
 summary(maxLik(llf, start = c(mu=0.1, sd=0.1)))
 
-length(unique(hb$pgnace2))
+# Bootstraping
+
+mean(sample(hb$CS,10000, replace = TRUE))
+mean(rlnorm(10000,4.45,0.97))
+
+sample(hb$CS, 100, replace = TRUE)
+
+mean_func <- function(data, indices) {
+  sample <- data[indices]
+  return(mean(sample))
+}
+
+boot(data = hb$CS, statistic = mean_func, R = 100)
 
 # Define the Stan model
 stan_model = "
 data {
   int N; 
   int J;
-  int K;
-  int<lower = 1, upper = K> occ[N];
   int<lower = 1, upper = J> loc[N];
   vector[N] CS;              
 }
 
 parameters {
-  vector[J] mu;           
-  vector<lower=0>[J] sigma;    
-  vector[K] w;           
-  real<lower=0> k; 
-  real a;
-  real<lower=0> b;
+  real mu;           
+  real<lower=0> sigma;    
+  vector[J] w;           
+  vector<lower=0>[J] k; 
+  vector[J] a;
+  vector<lower=0>[J] b;
 }
 
 model {
   // Stage 1: Likelihood
-   for (n in 1:N) {
-    CS ~ lognormal(mu[loc[n]], sigma[loc[n]]);
-  }
- 
+    CS ~ lognormal(mu, sigma);
+  
   // Stage 2: Prior for mu and sigma
-  for(n in 1:N) {
-   mu ~ normal(w[occ[n]],k);
-  }
+  mu ~ normal(w,k);
   sigma ~ cauchy(a,b);
 
   // Stage 3: Hyperpriors
