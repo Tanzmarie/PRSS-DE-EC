@@ -1,160 +1,790 @@
-library(readr)
-library(tidyverse)
-library(furrr)
+library("readr")
+library("tidyverse")
+library("optimx")
+library("furrr")
+library("foreach")
+library("doFuture")
 
-source("functions/tests.R")
-source("functions/costs.R")
-
-data = read_csv("application/data/COVID-19-Faelle_7-Tage-Inzidenz_Landkreise.csv")
-dt = data[which(data$Landkreis_id == "02000"),]
-
-dt$prevalence = ((dt$`Inzidenz_7-Tage`/7) * 14)/100000
-
-
-# Calculating the expected number of tests
-num_cores = detectCores() - 1
-cl = makeCluster(num_cores)
-registerDoParallel(cl)
-plan(multisession, workers = detectCores() - 1)
-
-tests = future_map(dt$prevalence, calculate_tests, n = 1000, sims = 50)
-
-stopCluster(cl)
-
-
-
-# Calculating economic costs
-res = c(exp(4.39 + (0.98/2)),exp(4.47 + (0.98/2)),exp(4.56 + (0.98/2)))
-
-
-n = 1000
-cf = 1000
-tau0 = 750
-cl = 300
-mu = res[2]
-h = 0.5
-
-cv_values = c(0, 50, 150, 200, 300, 400)  
-
-
-tau = lapply(tests, function(mat) mat[, "Tests"])
-ltau = lapply(tests, function(mat) mat[, "Lower"])
-utau = lapply(tests, function(mat) mat[, "Upper"])
-omega = lapply(tests, function(mat) mat[, "Duration"])
-
-
-# Define a list to store the results for each h
-economic_costs_list = list()
-l_economic_costs_list = list()
-u_economic_costs_list = list()
-
-# Iterate over h values
-for (cv in cv_values) {
-  # Define a list to store the results for each time point
-  result_costs_list = list()
-  result_costs_list2 = list()
-  result_costs_list3 = list()
+econ = function(n, p, cv, cl, h, tau0, sims = 0) {
   
-  
-  # Iterate over the indices
-  for (i in seq_along(tau)) {
-    # Extract tau and omega for the current time point
-    current_tau = tau[[i]]
-    l_current_tau = ltau[[i]]
-    u_current_tau = utau[[i]]
-    current_omega = omega[[i]]
+  one = function(n, p, cv, cl, h, tau0) {
     
-    # Call calculateEconomicCosts for the current time point and h value
-    current_costs = calculateEconomicCosts(cf, cv, cl, current_tau, tau0, h, current_omega, n, mu)
-    l_current_costs = calculateEconomicCosts(cf, cv, cl, l_current_tau, tau0, h, current_omega, n, mu)
-    u_current_costs = calculateEconomicCosts(cf, cv, cl, u_current_tau, tau0, h, current_omega, n, mu)
+    res = as.numeric(ifelse(round(n * p) == 0, 1, n))
+    
+    if (res == 1) {
+      TotalCosts = NA
+    } else {
+      # Deterministic costs
+      DC = ifelse(tau0 < res, tau0 * cv, res * cv)
+      
+      
+      F1 = rlnorm(n,4.45,0.97)
+      # Stochastic costs
+      CS = (1-h) * sum(F1)
+      
+      # Outsource cost
+      CO = ifelse(tau0 < res, (res - tau0) * cl, 0)
+      
+      # Total costs
+      TotalCosts = (DC + CS + CO)
+    }
     
     
-    # Store the result in the list
-    result_costs_list[[i]] = current_costs
-    result_costs_list2[[i]] = l_current_costs
-    result_costs_list3[[i]] = u_current_costs
+    df = data.frame(
+      "n" = n,
+      "p" = p,
+      "Theoretical" = res / n,
+      "Tests" = res / n,
+      "LowTests" = res / n,
+      "UpTests" = res / n,
+      "MCosts" = TotalCosts / n,
+      "LCosts" = TotalCosts / n,
+      "UCosts" = TotalCosts / n
+    )
+    
+    row.names(df) = "One-stage"
+    
+    return(df)
   }
   
-  # Store the results for this h value
-  economic_costs_list[[as.character(cv)]] = result_costs_list
-  l_economic_costs_list[[as.character(cv)]] = result_costs_list2
-  u_economic_costs_list[[as.character(cv)]] = result_costs_list3
+  
+  two = function(n, p, cv, cl, h, tau0, sims = 0) {
+    # Searching for the No. Tests in Expectation
+    if (round(n * p) == 0) {
+      theo = 1
+      opts = 0
+    } else {
+      opt = function(n, p, s) {
+        res = n * ((1/s) + 1 - (1 - p)^s)
+      }
+      
+      optimization = optimx(par = c(s = 1), fn = function(params) opt(n, p, params["s"]), method = "nlminb")
+      
+      if (optimization$s > n | optimization$value > n | optimization$convcode == 1) {
+        theo = n
+        opts = 0
+      } else {
+        theo = optimization$value
+        opts = optimization$s
+      }
+    }
+    
+    
+    # If sims != 0 simulate the procedure
+    if (sims != 0) {
+      if (round(n * p) == 0) {
+        mtests = 1
+        ltests = 1
+        utests = 1
+        mcosts = NA
+        lcosts = NA
+        ucosts = NA
+      } else {
+        
+        num_tests_costs_matrix = foreach(s = 1:sims, .combine = rbind, .options.future = list(seed = TRUE)) %dofuture%  {
+          
+          
+          if (opts != 0) {
+            # State infected individuals
+            infected = sample(n, size = round(p * n))
+            
+            # Stage 1: Divide population into random groups of size opts
+            shuffled_indices = sample(n)
+            num_groups = ceiling(n / opts)
+            groups = split(shuffled_indices, ceiling(seq_along(1:n)/opts))
+            
+            p_groups = c()  # Initialize vector to store indices of positive groups
+            
+            for (i in 1:length(groups)) {
+              if (sum(groups[[i]] %in% infected) > 0) {
+                # If group has at least one infected individual, save its index
+                p_groups = c(p_groups, i)
+              }
+            }
+            
+            # Stage 2: Test individuals in positive groups individually
+            num_tests = num_groups + length(p_groups) * opts
+            
+            
+            # Calculate costs
+            
+            # Deterministic costs
+            DC = ifelse(tau0 < num_tests, tau0 * cv, num_tests * cv)
+            
+            
+            F1 = rlnorm(n,4.45,0.97)
+            F2 = sample(F1, length(p_groups) * opts)
+            # Stochastic costs
+            CS = (1-h) * (sum(F1) + sum(F2))
+            
+            # Outsource cost
+            CO = ifelse(tau0 < num_tests, (num_tests - tau0) * cl, 0)
+            
+            # Total costs
+            TotalCosts = (DC + CS + CO)
+            
+            
+          } else {
+            num_tests = n
+            TotalCosts = NA
+          }
+          
+          # Return both num_tests and duration for this iteration
+          return(c(num_tests, TotalCosts))
+        }
+        
+        # Separate the results into num_tests_vector and num_dur_vector
+        num_tests_vector = num_tests_costs_matrix[, 1]
+        num_cost_vector = num_tests_costs_matrix[, 2]
+        
+        # Calculate statistics
+        mtests = mean(num_tests_vector)
+        ltests = min(num_tests_vector)
+        utests = max(num_tests_vector)
+        
+        
+        mcosts = mean(num_cost_vector)
+        lcosts = min(num_cost_vector)
+        ucosts = max(num_cost_vector)
+        
+      }
+    } else {
+      mtests = NA
+      ltests = NA
+      utests = NA
+      mcosts = NA
+      lcosts = NA
+      ucosts = NA
+    }
+    
+    
+    df = data.frame("n" = n,
+                    "p" = p,
+                    "Theoretical" = theo / n,
+                    "Tests" = mtests / n,
+                    "LowTests" = ltests / n,
+                    "UpTests" = utests / n,
+                    "MCosts" = mcosts / n,
+                    "LCosts" = lcosts / n,
+                    "UCosts" = ucosts / n)
+    
+    row.names(df) = "Two-stage"
+    
+    return(df)
+  }
+  
+  three = function(n, p, cv, cl, h, tau0, sims = 0) {
+    
+    # Searching for the No. Tests
+    if(round(n * p) == 0) {
+      theo = 1
+      opts1 = 0
+      opts2 = 0
+    } else {
+      opt =  function(n, p, s1, s2) {
+        res = n*(1/s1 + 1/s2*(1 - (1-p)^s1) + (1 - (1-p)^s2))
+      }
+      
+      optimization = optimx(par = c(s1 = 1, s2 = 1), fn = function(params) opt(n, p, params["s1"], params["s2"] ), method = c("L-BFGS-B"), lower = c(1,1))
+      
+      
+      if(optimization$s1 > n | optimization$value > n | optimization$value == -Inf | optimization$convcode == 1) {
+        theo = n
+        opts1 = 0
+        opts2 = 0
+      } else {
+        theo = optimization$value
+        opts1 = optimization$s1
+        opts2 = optimization$s2
+      }
+    }
+    
+    
+    # Simulate Procedure 
+    
+    if (sims != 0) {
+      if(round(n * p) == 0) {
+        mtests = 1
+        ltests = 1
+        utests = 1
+        mcosts = NA
+        lcosts = NA
+        ucosts = NA
+      } else {
+        
+        num_tests_costs_matrix = foreach(s = 1:sims, .combine = rbind, .options.future = list(seed = TRUE)) %dofuture%  {
+          if (opts1 != 0 & opts2 != 0) {
+            # State infected individuals
+            infected = sample(n, size = round(p * n))
+            
+            # Stage 1: Divide population into random groups of size s
+            shuffled_indices = sample(n)
+            num_groups = ceiling(n / opts1)
+            groups = split(shuffled_indices, ceiling(seq_along(1:n)/opts1))
+            
+            
+            p_groups = c()  # Initialize vector to store indices of positive groups
+            
+            for (i in 1:length(groups)) {
+              if (sum(groups[[i]] %in% infected) > 0) {
+                # If group has at least one infected individual, save its index
+                p_groups = c(p_groups, i)
+              }
+            }
+            
+            # Stage 2: Divide positive pools in subpools
+            n2 = as.numeric(length(unlist(groups[p_groups])))
+            shuffled_indices2 = unname(sample(unlist(groups[p_groups])))
+            num_groups2 = ceiling(n2/opts2)
+            groups2 = split(shuffled_indices2, ceiling(seq_along(1:n2)/opts2))
+            
+            
+            p_groups2 = c()  # Initialize vector to store indices of positive groups
+            
+            for (i in 1:length(groups2)) {
+              if (sum(groups2[[i]] %in% infected) > 0) {
+                # If group has at least one infected individual, save its index
+                p_groups2 = c(p_groups2, i)
+              }
+            }
+            
+            # Stage 3: Test individuals in positive groups individually
+            num_tests = num_groups + num_groups2 + length(p_groups2) * opts2
+            
+            # Calculate costs
+            
+            # Deterministic costs
+            DC = ifelse(tau0 < num_tests, tau0 * cv, num_tests * cv)
+            
+            
+            F1 = rlnorm(n,4.45,0.97)
+            F2 = sample(F1, length(p_groups) * opts1)
+            F3 = sample(F2, length(p_groups2) * opts2)
+            
+            # Stochastic costs
+            CS = (1-h) * (sum(F1) + sum(F2) + sum(F3))
+            
+            # Outsource cost
+            CO = ifelse(tau0 < num_tests, (num_tests - tau0) * cl, 0)
+            
+            # Total costs
+            TotalCosts = (DC + CS + CO)
+            
+            
+            
+            
+            
+          } else {
+            num_tests = n
+            TotalCosts = NA
+          }
+          
+          # Return both num_tests and duration for this iteration
+          return(c(num_tests, TotalCosts))
+        }
+        
+        # Separate the results into num_tests_vector and num_dur_vector
+        num_tests_vector = num_tests_costs_matrix[, 1]
+        num_cost_vector = num_tests_costs_matrix[, 2]
+        
+        # Calculate statistics
+        mtests = mean(num_tests_vector)
+        ltests = min(num_tests_vector)
+        utests = max(num_tests_vector)
+        
+        
+        mcosts = mean(num_cost_vector)
+        lcosts = min(num_cost_vector)
+        ucosts = max(num_cost_vector)
+        
+      }
+    } else {
+      mtests = NA
+      ltests = NA
+      utests = NA
+      mcosts = NA
+      lcosts = NA
+      ucosts = NA
+    }
+    
+    
+    df = data.frame("n" = n,
+                    "p" = p,
+                    "Theoretical" = theo / n,
+                    "Tests" = mtests / n,
+                    "LowTests" = ltests / n,
+                    "UpTests" = utests / n,
+                    "MCosts" = mcosts / n,
+                    "LCosts" = lcosts / n,
+                    "UCosts" = ucosts / n)
+    
+    row.names(df) = "Three-stage"
+    
+    return(df)
+  }
+  
+  four = function(n, p, cv, cl, h, tau0, sims = 0) {
+    
+    if(round(n * p) == 0) {
+      theo = 1
+      opts1 = 0
+      opts2 = 0
+      opts3 = 0
+    } else {
+      opt =  function(n, p, s1, s2, s3) {
+        res = n*(1/s1 + 1/s2*(1 - (1-p)^s1) + 1/s3*(1 - (1-p)^s2) + (1-(1-p)^s3))
+      }
+      
+      optimization = optimx(par = c(s1 = 1, s2 = 1, s3 = 1), fn = function(params) opt(n, p, params["s1"], params["s2"], params["s3"]), method = c("L-BFGS-B"), lower = c(1,1,1))
+      
+      if(optimization$s1 > n | optimization$value > n | optimization$value == -Inf | optimization$convcode == 1) {
+        theo = n
+        opts1 = 0
+        opts2 = 0
+        opts3 = 0
+      } else {
+        theo = optimization$value
+        opts1 = optimization$s1
+        opts2 = optimization$s2
+        opts3 = optimization$s3
+      }
+    }
+    
+    
+    
+    if (sims != 0) {
+      if(round(n * p) == 0) {
+        mtests = 1
+        ltests = 1
+        utests = 1
+        mcosts = NA
+        lcosts = NA
+        ucosts = NA
+      } else {
+        
+        num_tests_costs_matrix = foreach(s = 1:sims, .combine = rbind, .options.future = list(seed = TRUE)) %dofuture%  {
+          # Simulate the procedure
+          if (opts1 > 0 & opts2 > 0 & opts3 > 0) {
+            # State infected individuals
+            infected = sample(n, size = round(p * n))
+            
+            # Stage 1: Divide population into random groups of size s
+            shuffled_indices = sample(n)
+            num_groups = ceiling(n / opts1)
+            groups = split(shuffled_indices, ceiling(seq_along(1:n)/opts1))
+            
+            
+            p_groups = c()  # Initialize vector to store indices of positive groups
+            
+            for (i in 1:length(groups)) {
+              if (sum(groups[[i]] %in% infected) > 0) {
+                # If group has at least one infected individual, save its index
+                p_groups = c(p_groups, i)
+              }
+            }
+            
+            # Stage 2: Divide positive pools in subpools
+            n2 = as.numeric(length(unlist(groups[p_groups])))
+            shuffled_indices2 = unname(unlist(groups[p_groups]))
+            num_groups2 = ceiling(n2/opts2)
+            groups2 = split(shuffled_indices2, ceiling(seq_along(1:n2)/opts2))
+            
+            
+            p_groups2 = c()  # Initialize vector to store indices of positive groups
+            
+            for (i in 1:length(groups2)) {
+              if (sum(groups2[[i]] %in% infected) > 0) {
+                # If group has at least one infected individual, save its index
+                p_groups2 = c(p_groups2, i)
+              }
+            }
+            
+            # Stage 3: Divide positive pools in subpools
+            n3 = as.numeric(length(unlist(groups2[p_groups2])))
+            shuffled_indices3 = unname(unlist(groups2[p_groups2]))
+            num_groups3 = ceiling(n3/opts3)
+            groups3 = split(shuffled_indices3, ceiling(seq_along(1:n3)/opts3))
+            
+            
+            p_groups3 = c()  # Initialize vector to store indices of positive groups
+            
+            for (i in 1:length(groups3)) {
+              if (sum(groups3[[i]] %in% infected) > 0) {
+                # If group has at least one infected individual, save its index
+                p_groups3 = c(p_groups3, i)
+              }
+            }
+            
+            
+            # Stage 4: Test individuals in positive groups individually
+            num_tests = num_groups + num_groups2 + num_groups3 + length(p_groups3) * opts3
+            
+            # Calculate costs
+            
+            # Deterministic costs
+            DC = ifelse(tau0 < num_tests, tau0 * cv, num_tests * cv)
+            
+            
+            F1 = rlnorm(n,4.45,0.97)
+            F2 = sample(F1, length(p_groups) * opts1)
+            F3 = sample(F2, length(p_groups2) * opts2)
+            F4 = sample(F3, length(p_groups3) * opts3)
+            
+            # Stochastic costs
+            CS = (1-h) * (sum(F1) + sum(F2) + sum(F3) + sum(F4))
+            
+            # Outsource cost
+            CO = ifelse(tau0 < num_tests, (num_tests - tau0) * cl, 0)
+            
+            # Total costs
+            TotalCosts = (DC + CS + CO)
+            
+            
+            
+          } else {
+            num_tests = n
+            TotalCosts = NA
+          }
+          
+          # Return both num_tests and duration for this iteration
+          return(c(num_tests, TotalCosts))
+        }
+        
+        # Separate the results into num_tests_vector and num_dur_vector
+        num_tests_vector = num_tests_costs_matrix[, 1]
+        num_cost_vector = num_tests_costs_matrix[, 2]
+        
+        # Calculate statistics
+        mtests = mean(num_tests_vector)
+        ltests = min(num_tests_vector)
+        utests = max(num_tests_vector)
+        
+        
+        mcosts = mean(num_cost_vector)
+        lcosts = min(num_cost_vector)
+        ucosts = max(num_cost_vector)
+      }
+    } else {
+      mtests = NA
+      ltests = NA
+      utests = NA
+      mcosts = NA
+      lcosts = NA
+      ucosts = NA
+    }
+    
+    
+    
+    df = data.frame("n" = n,
+                    "p" = p,
+                    "Theoretical" = theo / n,
+                    "Tests" = mtests / n,
+                    "LowTests" = ltests / n,
+                    "UpTests" = utests / n,
+                    "MCosts" = mcosts / n,
+                    "LCosts" = lcosts / n,
+                    "UCosts" = ucosts / n)
+    
+    row.names(df) =  "Four-stage"
+    
+    return(df)
+  }
+  
+  five = function(n, p, cv, cl, h, tau0, sims = 0) {
+    
+    if(round(n * p) == 0) {
+      theo = 1
+      opts1 = 0
+      opts2 = 0
+      opts3 = 0
+      opts4 = 0
+    } else {
+      opt =  function(n, p, s1, s2, s3, s4) {
+        res = n*(1/s1 + 1/s2*(1 - (1-p)^s1) + 1/s3*(1 - (1-p)^s2) + 1/s4*(1-(1-p)^s3) + (1-(1-p)^s4))
+      }
+      
+      optimization = optimx(par = c(s1 = 1, s2 = 1, s3 = 1, s4 = 1), fn = function(params) opt(n, p, params["s1"], params["s2"], params["s3"], params["s4"]), method = c("L-BFGS-B"), lower = c(1,1,1,1))
+      
+      if(optimization$s1 > n | optimization$value > n | optimization$value == -Inf | optimization$convcode == 1) {
+        theo = n
+        opts1 = 0
+        opts2 = 0
+        opts3 = 0
+        opts4 = 0
+      } else {
+        theo = optimization$value
+        opts1 = optimization$s1
+        opts2 = optimization$s2
+        opts3 = optimization$s3
+        opts4 = optimization$s4
+      }
+    }
+    
+    
+    if (sims != 0) {
+      if(round(n * p) == 0) {
+        mtests = 1
+        ltests = 1
+        utests = 1
+        mcosts = NA
+        lcosts = NA
+        ucosts = NA
+      } else {
+        
+        num_tests_costs_matrix = foreach(s = 1:sims, .combine = rbind, .options.future = list(seed = TRUE)) %dofuture%  {
+          # Simulate the procedure
+          if (opts1 > 0 & opts2 > 0 & opts3 > 0 & opts4 > 0) {
+            # State infected individuals
+            infected = sample(n, size = round(p * n))
+            
+            # Stage 1: Divide population into random groups of size s
+            shuffled_indices = sample(n)
+            num_groups = ceiling(n / opts1)
+            groups = split(shuffled_indices, ceiling(seq_along(1:n)/opts1))
+            
+            
+            p_groups = c()  # Initialize vector to store indices of positive groups
+            
+            for (i in 1:length(groups)) {
+              if (sum(groups[[i]] %in% infected) > 0) {
+                # If group has at least one infected individual, save its index
+                p_groups = c(p_groups, i)
+              }
+            }
+            
+            # Stage 2: Divide positive pools in subpools
+            n2 = as.numeric(length(unlist(groups[p_groups])))
+            shuffled_indices2 = unname(unlist(groups[p_groups]))
+            num_groups2 = ceiling(n2/opts2)
+            groups2 = split(shuffled_indices2, ceiling(seq_along(1:n2)/opts2))
+            
+            
+            p_groups2 = c()  # Initialize vector to store indices of positive groups
+            
+            for (i in 1:length(groups2)) {
+              if (sum(groups2[[i]] %in% infected) > 0) {
+                # If group has at least one infected individual, save its index
+                p_groups2 = c(p_groups2, i)
+              }
+            }
+            
+            # Stage 3: Divide positive pools in subpools
+            n3 = as.numeric(length(unlist(groups2[p_groups2])))
+            shuffled_indices3 = unname(unlist(groups2[p_groups2]))
+            num_groups3 = ceiling(n3/opts3)
+            groups3 = split(shuffled_indices3, ceiling(seq_along(1:n3)/opts3))
+            
+            
+            p_groups3 = c()  # Initialize vector to store indices of positive groups
+            
+            for (i in 1:length(groups3)) {
+              if (sum(groups3[[i]] %in% infected) > 0) {
+                # If group has at least one infected individual, save its index
+                p_groups3 = c(p_groups3, i)
+              }
+            }
+            
+            # Stage 4: Divide positive pools in subpools
+            n4 = as.numeric(length(unlist(groups3[p_groups3])))
+            shuffled_indices4 = unname(unlist(groups3[p_groups3]))
+            num_groups4 = ceiling(n4/opts4)
+            groups4 = split(shuffled_indices4, ceiling(seq_along(1:n4)/opts4))
+            
+            
+            p_groups4 = c()  # Initialize vector to store indices of positive groups
+            
+            for (i in 1:length(groups4)) {
+              if (sum(groups4[[i]] %in% infected) > 0) {
+                # If group has at least one infected individual, save its index
+                p_groups4 = c(p_groups4, i)
+              }
+            }
+            
+            
+            # Stage 5: Test individuals in positive groups individually
+            num_tests = num_groups + num_groups2 + num_groups3 + num_groups4 + length(p_groups4) * opts4
+            
+            # Calculate costs
+            
+            # Deterministic costs
+            DC = ifelse(tau0 < num_tests, tau0 * cv, num_tests * cv)
+            
+            
+            F1 = rlnorm(n,4.45,0.97)
+            F2 = sample(F1, length(p_groups) * opts1)
+            F3 = sample(F2, length(p_groups2) * opts2)
+            F4 = sample(F3, length(p_groups3) * opts3)
+            F5 = sample(F4, length(p_groups4) * opts4)
+            
+            # Stochastic costs
+            CS = (1-h) * (sum(F1) + sum(F2) + sum(F3) + sum(F4) + sum(F5))
+            
+            # Outsource cost
+            CO = ifelse(tau0 < num_tests, (num_tests - tau0) * cl, 0)
+            
+            # Total costs
+            TotalCosts = (DC + CS + CO)
+            
+            
+          } else {
+            num_tests = n
+            TotalCosts = NA
+          }
+          
+          # Return both num_tests and duration for this iteration
+          return(c(num_tests, TotalCosts))
+        }
+        
+        # Separate the results into num_tests_vector and num_dur_vector
+        num_tests_vector = num_tests_costs_matrix[, 1]
+        num_cost_vector = num_tests_costs_matrix[, 2]
+        
+        # Calculate statistics
+        mtests = mean(num_tests_vector)
+        ltests = min(num_tests_vector)
+        utests = max(num_tests_vector)
+        
+        
+        mcosts = mean(num_cost_vector)
+        lcosts = min(num_cost_vector)
+        ucosts = max(num_cost_vector)
+      }
+    } else {
+      mtests = NA
+      ltests = NA
+      utests = NA
+      mcosts = NA
+      lcosts = NA
+      ucosts = NA
+    }
+    
+    
+    
+    df = data.frame("n" = n,
+                    "p" = p,
+                    "Theoretical" = theo / n,
+                    "Tests" = mtests / n,
+                    "LowTests" = ltests / n,
+                    "UpTests" = utests / n,
+                    "MCosts" = mcosts / n,
+                    "LCosts" = lcosts / n,
+                    "UCosts" = ucosts / n)
+    
+    row.names(df) = "Five-stage"
+    
+    return(df)
+  }
+  
+  Costs = rbind(one(n,p,cv,cl,h,tau0),
+                two(n,p,cv,cl,h,tau0, sims),
+                three(n,p,cv,cl,h,tau0, sims),
+                four(n,p,cv,cl,h,tau0, sims),
+                five(n,p,cv,cl,h,tau0, sims))
+  
+  Costs = tibble::rownames_to_column(Costs, "Algorithm")
+  
+  return(Costs)
+  
 }
 
-# Combine the results for different h values
-result_costs = do.call(rbind, lapply(names(economic_costs_list), function(cv) {
-  data.frame(
-    Time = rep(seq_along(economic_costs_list[[cv]]), each = nrow(economic_costs_list[[cv]][[1]])),
-    Algorithm = rep(economic_costs_list[[cv]][[1]][, "Algorithm"], times = length(economic_costs_list[[cv]])),
-    DC = unlist(lapply(economic_costs_list[[cv]], function(result) result[, "DC"])),
-    CS = unlist(lapply(economic_costs_list[[cv]], function(result) result[, "CS"])),
-    Costs = unlist(lapply(economic_costs_list[[cv]], function(result) result[, "Costs"])),
-    cv = rep(as.numeric(cv), each = nrow(economic_costs_list[[cv]][[1]]))
-  )
-}))
+# Load COVID-19 data for Germany
+data = read_csv("application/data/COVID-19-Faelle_7-Tage-Inzidenz_Landkreise.csv")
+covid = data[which(data$Landkreis_id == "02000"),]
+
+# Estimate the point-prevalence
+covid$prevalence = ((covid$`Inzidenz_7-Tage`/7) * 14)/100000
+
+# Calculate the cost in parallel
+plan(multisession)
+
+cv_values = c(0, 50, 100, 150, 300, 400, 800, 1000, 2000)  
+
+runsims = function(prevalence, cv) {
+  future_map(covid$prevalence, ~ econ(.x, n = 1000, cv = cv, cl = 300, h = 0.5, tau0 = 750, sims = 10), .options = furrr_options(seed = 444))
+}
+
+sims = future_map(cv_values, ~ {
+  result_matrices = runsims(covid$prevalence, .x)
+  list(cv = .x, results = result_matrices)
+}, .options = furrr_options(seed = 444))
+
+# Prepare data for presentation
+todf = function(results) {
+  # Initialize start date or any base time
+  start_date = as.Date("2020-01-03") 
+  
+  # Flatten results and assign a global incremental Time value
+  flat_list = map(results, function(res) {
+    data_frames = map2(res$results, seq_along(res$results), function(df, j) {
+      mutate(df, cv = res$cv, Time = start_date + (j - 1))
+    })
+    data_frames
+  })
+  
+  # Flatten the list of lists into a single list
+  flat_list = flatten(flat_list)
+  
+  # Combine all data frames into one
+  bind_rows(flat_list) %>%
+    relocate(cv, Time)
+}
 
 
-result_costs2 = do.call(rbind, lapply(names(l_economic_costs_list), function(cv) {
-  data.frame(
-    Time = rep(seq_along(economic_costs_list[[cv]]), each = nrow(l_economic_costs_list[[cv]][[1]])),
-    Algorithm = rep(l_economic_costs_list[[cv]][[1]][, "Algorithm"], times = length(l_economic_costs_list[[cv]])),
-    DC = unlist(lapply(l_economic_costs_list[[cv]], function(result) result[, "DC"])),
-    CS = unlist(lapply(l_economic_costs_list[[cv]], function(result) result[, "CS"])),
-    Costs = unlist(lapply(l_economic_costs_list[[cv]], function(result) result[, "Costs"])),
-    cv = rep(as.numeric(cv), each = nrow(l_economic_costs_list[[cv]][[1]]))
-  )
-}))
+res = todf(sims)
 
-result_costs3 = do.call(rbind, lapply(names(u_economic_costs_list), function(cv) {
-  data.frame(
-    Time = rep(seq_along(economic_costs_list[[cv]]), each = nrow(u_economic_costs_list[[cv]][[1]])),
-    Algorithm = rep(u_economic_costs_list[[cv]][[1]][, "Algorithm"], times = length(u_economic_costs_list[[cv]])),
-    DC = unlist(lapply(u_economic_costs_list[[cv]], function(result) result[, "DC"])),
-    CS = unlist(lapply(u_economic_costs_list[[cv]], function(result) result[, "CS"])),
-    Costs = unlist(lapply(u_economic_costs_list[[cv]], function(result) result[, "Costs"])),
-    cv = rep(as.numeric(cv), each = nrow(u_economic_costs_list[[cv]][[1]]))
-  )
-}))
-
-
-
-# Filter the data to keep only the lowest cost line for each facet
-lowest_costs = result_costs %>%
+meanecon = res %>%
   group_by(cv, Time) %>%
-  filter(Costs == min(Costs))
+  filter(MCosts == min(MCosts, na.rm = TRUE)) %>%
+  ungroup() 
 
-lowest_costs2 = result_costs2 %>%
+lowecon = res %>%
   group_by(cv, Time) %>%
-  filter(Costs == min(Costs)) 
+  filter(LCosts == min(LCosts, na.rm = TRUE)) %>%
+  ungroup() 
 
-lowest_costs3 = result_costs3 %>%
+highecon = res %>%
   group_by(cv, Time) %>%
-  filter(Costs == min(Costs)) 
+  filter(UCosts == min(UCosts, na.rm = TRUE)) %>%
+  ungroup() 
 
 
-# Plotting with facet_wrap
+# Plot the results
 x11()
-algorithm_colors =  c("One-stage" = "black",
-                      "Two-stage" = "green",
-                      "Three-stage" = "blue",
-                      "Four-stage" = "darkgoldenrod",
-                      "Five-stage" = "red"
-)
-ggplot(result_costs, aes(x = Time, y = Costs, color = Algorithm)) +
-  geom_line(data = lowest_costs, aes(group = 1), linewidth = 0.1) +
-  geom_line(data = lowest_costs2, aes(group = 1), linewidth = 0.5, alpha = 0.1) +
-  geom_line(data = lowest_costs3, aes(group = 1), linewidth = 0.5, alpha = 0.1) +
+algorithm_colors = c("One-stage" = "black",
+                     "Two-stage" = "green",
+                     "Three-stage" = "blue",
+                     "Four-stage" = "darkgoldenrod",
+                     "Five-stage" = "red")
+
+# Plotting depend on time in days
+ggplot(meanecon, aes(x = Time, y = MCosts, color = Algorithm)) +
+  geom_line(aes(group = 1), size = 1) +
+  geom_line(data = lowecon, aes(y = LCosts, group = 1), linewidth = 0.5, alpha = 0.1) +
+  geom_line(data = highecon, aes(y = UCosts, group = 1), linewidth = 0.5, alpha = 0.1) +
   facet_wrap(~ cv, nrow = 3, ncol = 3, scales = "free_y", 
              labeller = labeller(cv = function(value) paste0("cv = ", value))) +
   labs(title = "Progress of economic cost per individual for the COVID-19 pandemic in Hamburg",
        x = "Time in days",
        y = "Economic cost per individual") +
-  ylim(50,250) +
-  xlim(0,1500) +
   theme_bw() +
   theme(legend.position = "right",
         legend.key.size = unit(3, "lines")) +
   scale_color_manual(values = algorithm_colors)
 
+
+
+# Plotting depend on p instead of days
+ggplot(meanecon, aes(x = p, y = MCosts, color = Algorithm)) +
+  geom_line(aes(group = 1), size = 1) +
+  geom_line(data = lowecon, aes(y = LCosts, group = 1), linewidth = 0.5, alpha = 0.1) +
+  geom_line(data = highecon, aes(y = UCosts, group = 1), linewidth = 0.5, alpha = 0.1) +
+  facet_wrap(~ cv, nrow = 3, ncol = 3, scales = "free_y", 
+             labeller = labeller(cv = function(value) paste0("cv = ", value))) +
+  labs(title = "Progress of economic cost per individual for the COVID-19 pandemic in Hamburg",
+       x = "Prevalence",
+       y = "Economic cost per individual") +
+  theme_bw() +
+  theme(legend.position = "right",
+        legend.key.size = unit(3, "lines")) +
+  scale_color_manual(values = algorithm_colors)
 

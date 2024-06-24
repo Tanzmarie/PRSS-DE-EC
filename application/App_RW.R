@@ -5,7 +5,7 @@ library("furrr")
 library("foreach")
 library("doFuture")
 
-econ = function(n, p, cv, cl, h, tau0, sims = 0) {
+econ = function(n, p, cf, cv, cl, h, tau0, data, sims) {
   
   one = function(n, p, cv, cl, h, tau0) {
     
@@ -15,10 +15,10 @@ econ = function(n, p, cv, cl, h, tau0, sims = 0) {
       TotalCosts = NA
     } else {
       # Deterministic costs
-      DC = ifelse(tau0 < res, tau0 * cv, res * cv)
+      DC = ifelse(tau0 < res, cf + tau0 * cv, cf + res * cv)
       
       
-      F1 = rlnorm(n,4.45,0.97)
+      F1 = sample(unlist(lapply(1:100, function(i) {sample(data, replace = TRUE)})), size = n, replace = FALSE)
       # Stochastic costs
       CS = (1-h) * sum(F1)
       
@@ -109,10 +109,10 @@ econ = function(n, p, cv, cl, h, tau0, sims = 0) {
             # Calculate costs
             
             # Deterministic costs
-            DC = ifelse(tau0 < num_tests, tau0 * cv, num_tests * cv)
+            DC = ifelse(tau0 < num_tests, cf + tau0 * cv, cf + num_tests * cv)
             
             
-            F1 = rlnorm(n,4.45,0.97)
+            F1 = sample(unlist(lapply(1:100, function(i) {sample(data, replace = TRUE)})), size = n, replace = FALSE)
             F2 = sample(F1, length(p_groups) * opts)
             # Stochastic costs
             CS = (1-h) * (sum(F1) + sum(F2))
@@ -254,10 +254,10 @@ econ = function(n, p, cv, cl, h, tau0, sims = 0) {
             # Calculate costs
             
             # Deterministic costs
-            DC = ifelse(tau0 < num_tests, tau0 * cv, num_tests * cv)
+            DC = ifelse(tau0 < num_tests, cf + tau0 * cv, cf + num_tests * cv)
             
             
-            F1 = rlnorm(n,4.45,0.97)
+            F1 = sample(unlist(lapply(1:100, function(i) {sample(data, replace = TRUE)})), size = n, replace = FALSE)
             F2 = sample(F1, length(p_groups) * opts1)
             F3 = sample(F2, length(p_groups2) * opts2)
             
@@ -422,10 +422,10 @@ econ = function(n, p, cv, cl, h, tau0, sims = 0) {
             # Calculate costs
             
             # Deterministic costs
-            DC = ifelse(tau0 < num_tests, tau0 * cv, num_tests * cv)
+            DC = ifelse(tau0 < num_tests, cf + tau0 * cv, cf + num_tests * cv)
             
             
-            F1 = rlnorm(n,4.45,0.97)
+            F1 = sample(unlist(lapply(1:100, function(i) {sample(data, replace = TRUE)})), size = n, replace = FALSE)
             F2 = sample(F1, length(p_groups) * opts1)
             F3 = sample(F2, length(p_groups2) * opts2)
             F4 = sample(F3, length(p_groups3) * opts3)
@@ -607,10 +607,10 @@ econ = function(n, p, cv, cl, h, tau0, sims = 0) {
             # Calculate costs
             
             # Deterministic costs
-            DC = ifelse(tau0 < num_tests, tau0 * cv, num_tests * cv)
+            DC = ifelse(tau0 < num_tests, cf + tau0 * cv, cf + num_tests * cv)
             
             
-            F1 = rlnorm(n,4.45,0.97)
+            F1 = sample(unlist(lapply(1:100, function(i) {sample(data, replace = TRUE)})), size = n, replace = FALSE)
             F2 = sample(F1, length(p_groups) * opts1)
             F3 = sample(F2, length(p_groups2) * opts2)
             F4 = sample(F3, length(p_groups3) * opts3)
@@ -688,101 +688,124 @@ econ = function(n, p, cv, cl, h, tau0, sims = 0) {
 }
 
 # Load COVID-19 data for Germany
-data = read_csv("application/data/COVID-19-Faelle_7-Tage-Inzidenz_Landkreise.csv")
-covid = data[which(data$Landkreis_id == "02000"),]
+covid = read_csv("application/data/COVID-19-Faelle_7-Tage-Inzidenz_Landkreise.csv")
+covid = covid[which(covid$Landkreis_id == "02000"),]
 
 # Estimate the point-prevalence
 covid$prevalence = ((covid$`Inzidenz_7-Tage`/7) * 14)/100000
+prevalence = sort(unique(covid$prevalence))
+
+# Load income data for Germany
+pgen = read_csv("C:/Users/mbalzer/Desktop/SOEP-CORE.v38.1_eu_CSV/CSV/soepdata/pgen.csv")
+pequiv = read_csv("C:/Users/mbalzer/Desktop/SOEP-CORE.v38.1_eu_CSV/CSV/soepdata/pequiv.csv")
+
+pgen = read_csv("D:/Universität/PhD/Project 1/Data/cs-transfer/SOEP-CORE.v38.1_eu_CSV/CSV/soepdata/pgen.csv")
+pequiv = read_csv("D:/Universität/PhD/Project 1/Data/cs-transfer/SOEP-CORE.v38.1_eu_CSV/CSV/soepdata/pequiv.csv")
+
+# Data Preparation
+inc = pgen %>%
+  filter(pglabgro > 0 & pgtatzeit > 0 & syear %in% seq(2019,2021,1)) %>%
+  group_by(pid) %>%
+  filter(syear == max(syear)) %>%
+  ungroup()
+
+loc = pequiv %>%
+  filter(l11101 > 0 & syear %in% seq(2019,2021,1) & pid %in% inc$pid) %>%
+  group_by(pid) %>%
+  filter(syear == max(syear)) %>%
+  ungroup()
+
+# Join datasets
+dt = inner_join(inc, loc[, c("pid", "l11101")], by = "pid")
+
+# Calculate daily income
+dt = dt %>%
+  mutate(dailyinc = (pglabgro / (pgtatzeit / 5)) / 4.345)
+
+hb = dt %>%
+  filter(l11101 == 2)
+
+wage = hb$dailyinc
+
+# # Plot density and histogram
+# 
+# ggplot(hb, aes(x=dailyinc)) + 
+#   geom_histogram(aes(y=after_stat(density)), fill="white", color="black", bins=60) +  
+#   geom_density(alpha=0.2, fill="#FF6666") +  
+#   labs(title = "Histogram and kernel density of incomes in Hamburg",
+#        x = "Daily incomes",
+#        y = "Density") +
+#   theme_bw() 
 
 # Calculate the cost in parallel
-plan(multisession)
+plan("multisession")
 
-cv_values <- c(150, 200)  
+h_values = c(0,0.4,0.5,0.8,0.9,1) 
 
-runsims <- function(prevalence, cv) {
-  future_map(covid$prevalence, ~ econ(.x, n = 1000, cv = cv, cl = 300, h = 0.5, tau0 = 750, sims = 10), .options = furrr_options(seed = 444))
+runsims = function(prevalence, h) {
+  future_map(prevalence, ~ econ(.x, n = 1000, cf = 10000, cv = 150, cl = 300, h = h, tau0 = 750, data = wage, sims = 25), .options = furrr_options(seed = 300))
 }
 
-sims <- future_map(cv_values, ~ {
-  result_matrices <- runsims(covid$prevalence, .x)
-  list(cv = .x, results = result_matrices)
-}, .options = furrr_options(seed = 444))
+sims = future_map(h_values, ~ {
+  result_matrices = runsims(prevalence, .x)
+  list(h = .x, results = result_matrices)
+}, .options = furrr_options(seed = 300))
 
 # Prepare data for presentation
-todf <- function(results) {
+todf = function(results) {
   # Initialize start date or any base time
-  start_date <- as.Date("2020-01-03") 
+  start_date = as.Date("2020-01-03") 
   
   # Flatten results and assign a global incremental Time value
-  flat_list <- map(results, function(res) {
-    data_frames <- map2(res$results, seq_along(res$results), function(df, j) {
-      mutate(df, cv = res$cv, Time = start_date + (j - 1))
+  flat_list = map(results, function(res) {
+    data_frames = map2(res$results, seq_along(res$results), function(df, j) {
+      mutate(df, h = res$h, Time = start_date + (j - 1))
     })
     data_frames
   })
   
   # Flatten the list of lists into a single list
-  flat_list <- flatten(flat_list)
+  flat_list = flatten(flat_list)
   
   # Combine all data frames into one
   bind_rows(flat_list) %>%
-    relocate(cv, Time)
+    relocate(h, Time)
 }
 
 
-res <- todf(sims)
+res = todf(sims)
 
 meanecon = res %>%
-  group_by(cv, Time) %>%
+  group_by(h, Time) %>%
   filter(MCosts == min(MCosts, na.rm = TRUE)) %>%
   ungroup() 
 
-lowecon <- res %>%
-  group_by(cv, Time) %>%
+lowecon = res %>%
+  group_by(h, Time) %>%
   filter(LCosts == min(LCosts, na.rm = TRUE)) %>%
   ungroup() 
 
-highecon <- res %>%
-  group_by(cv, Time) %>%
+highecon = res %>%
+  group_by(h, Time) %>%
   filter(UCosts == min(UCosts, na.rm = TRUE)) %>%
   ungroup() 
 
 
-
 # Plot the results
 x11()
-algorithm_colors <- c("One-stage" = "black",
+algorithm_colors = c("One-stage" = "black",
                       "Two-stage" = "green",
                       "Three-stage" = "blue",
                       "Four-stage" = "darkgoldenrod",
                       "Five-stage" = "red")
-
-# Plotting depend on time in days
-ggplot(meanecon, aes(x = Time, y = MCosts, color = Algorithm)) +
-  geom_line(aes(group = 1), size = 1) +
-  geom_line(data = lowecon, aes(y = LCosts, group = 1), linewidth = 0.5, alpha = 0.1) +
-  geom_line(data = highecon, aes(y = UCosts, group = 1), linewidth = 0.5, alpha = 0.1) +
-  facet_wrap(~ cv, nrow = 3, ncol = 3, scales = "free_y", 
-             labeller = labeller(cv = function(value) paste0("cv = ", value))) +
-  labs(title = "Progress of economic cost per individual for the COVID-19 pandemic in Hamburg",
-       x = "Time in days",
-       y = "Economic cost per individual") +
-  theme_bw() +
-  theme(legend.position = "right",
-        legend.key.size = unit(3, "lines")) +
-  scale_color_manual(values = algorithm_colors)
-
-
-
-# Plotting depend on p instead of days
 ggplot(meanecon, aes(x = p, y = MCosts, color = Algorithm)) +
-  geom_line(aes(group = 1), size = 1) +
+  geom_line(aes(group = 1), linewidth = 1) +
   geom_line(data = lowecon, aes(y = LCosts, group = 1), linewidth = 0.5, alpha = 0.1) +
   geom_line(data = highecon, aes(y = UCosts, group = 1), linewidth = 0.5, alpha = 0.1) +
-  facet_wrap(~ cv, nrow = 3, ncol = 3, scales = "free_y", 
-             labeller = labeller(cv = function(value) paste0("cv = ", value))) +
+  facet_wrap(~ h, nrow = 4, ncol = 3, scales = "free_y", 
+             labeller = labeller(h = function(value) paste0("h = ", value))) +
   labs(title = "Progress of economic cost per individual for the COVID-19 pandemic in Hamburg",
-       x = "Time in days",
+       x = "Prevalence",
        y = "Economic cost per individual") +
   theme_bw() +
   theme(legend.position = "right",

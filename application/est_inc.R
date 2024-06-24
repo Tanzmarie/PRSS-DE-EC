@@ -4,6 +4,7 @@ library(tidyverse)
 library(readr)
 library(maxLik)
 library(boot)
+library(rsample)
 
 
 # Parallel Computing
@@ -41,21 +42,6 @@ dt = dt %>%
 hb = dt %>%
   filter(l11101 == 2)
 
-hb = hb %>% filter(pgnace2 > 0)
-
-hb$pgnace2[which(hb$pgnace2 == -1)] = 100
-hb$pgnace2[which(hb$pgnace2 == -2)] = 101
-
-# Plot density and histogram
-
-ggplot(hb, aes(x=dailyinc)) + 
-  geom_histogram(aes(y=after_stat(density)), fill="white", color="black", bins=60) +  
-  geom_density(alpha=0.2, fill="#FF6666") +  
-  labs(title = "Histogram and kernel density of incomes in Hamburg",
-       x = "Daily incomes",
-       y = "Density") +
-  theme_bw() 
-
 
 hb = list(N = nrow(hb), J = length(unique(hb$l11101)), loc = hb$l11101, CS = hb$dailyinc)
 
@@ -69,19 +55,60 @@ llf = function(params) {
 
 summary(maxLik(llf, start = c(mu=0.1, sd=0.1)))
 
-# Bootstraping
+# Bagging
 
-mean(sample(hb$CS,10000, replace = TRUE))
-mean(rlnorm(10000,4.45,0.97))
+# Parameters
+data <- hb$CS  # Example dataset
+n_iterations <- 100  # Number of bootstrap samples
+sample_size <- length(data)  # Size of each bootstrap sample
+aggregate_size <- 50  # Number of samples you want after aggregation
 
-sample(hb$CS, 100, replace = TRUE)
+sample(unlist(lapply(1:100, function(i) {sample(data, replace = TRUE)})), size = 1000, replace = FALSE)
 
-mean_func <- function(data, indices) {
-  sample <- data[indices]
-  return(mean(sample))
+
+# Some tests with costs
+n = 1000
+opts = 3
+p_groups = 50
+num_tests = 425
+cv = 150
+cl = 300
+tau0 = 750 
+h = 0.5
+
+cost = function(n,opts,p_groups, tau0, cv, cl, num_tests, h, data) {
+F1 = sample(data, n, replace = TRUE)
+F2 = sample(F1, p_groups * opts)
+
+DC = ifelse(tau0 < num_tests, tau0 * cv, num_tests * cv)
+# Stochastic costs
+CS = (1-h) * (sum(F1) + sum(F2))
+
+# Outsource cost
+CO = ifelse(tau0 < num_tests, (num_tests - tau0) * cl, 0)
+
+# Total costs
+(DC + CS + CO) / n
 }
 
-boot(data = hb$CS, statistic = mean_func, R = 100)
+cost2 = function(n,opts,p_groups, tau0, cv, cl, num_tests, h, data) {
+  F1 = sample(replicate(sample(data, replace = TRUE), n = 100), size = n)
+  F2 = sample(F1, p_groups * opts)
+  
+  DC = ifelse(tau0 < num_tests, tau0 * cv, num_tests * cv)
+  # Stochastic costs
+  CS = (1-h) * (sum(F1) + sum(F2))
+  
+  # Outsource cost
+  CO = ifelse(tau0 < num_tests, (num_tests - tau0) * cl, 0)
+  
+  # Total costs
+  (DC + CS + CO) / n
+}
+
+mean(replicate(cost(data = hb$CS, n,opts,p_groups, tau0, cv, cl, num_tests, h), n = 50))
+mean(replicate(cost2(data = hb$CS, n,opts,p_groups, tau0, cv, cl, num_tests, h), n = 50))
+
 
 # Define the Stan model
 stan_model = "
@@ -93,17 +120,19 @@ data {
 }
 
 parameters {
-  real mu;           
-  real<lower=0> sigma;    
-  vector[J] w;           
-  vector<lower=0>[J] k; 
-  vector[J] a;
-  vector<lower=0>[J] b;
+  vector[J] mu;           
+  vector<lower=0>[J] sigma;    
+  real w;           
+  real<lower=0> k; 
+  real a;
+  real<lower=0> b;
 }
 
 model {
   // Stage 1: Likelihood
-    CS ~ lognormal(mu, sigma);
+  for(n in 1:N) {
+    CS[n] ~ lognormal(mu[loc[n]], sigma[loc[n]]);
+  }
   
   // Stage 2: Prior for mu and sigma
   mu ~ normal(w,k);
