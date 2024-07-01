@@ -7,7 +7,7 @@ library("doFuture")
 
 econ = function(n, p, cf, cv, cl, h, tau0, data, sims) {
   
-  one = function(n, p, cv, cl, h, tau0) {
+  one = function(n, p, cf, cv, cl, h, tau0) {
     
     res = as.numeric(ifelse(round(n * p) == 0, 1, n))
     
@@ -18,7 +18,7 @@ econ = function(n, p, cf, cv, cl, h, tau0, data, sims) {
       DC = ifelse(tau0 < res, cf + tau0 * cv, cf + res * cv)
       
       
-      F1 = sample(unlist(lapply(1:100, function(i) {sample(data, replace = TRUE)})), size = n, replace = FALSE)
+      F1 = sample(data, size = n, replace = TRUE)
       # Stochastic costs
       CS = (1-h) * sum(F1)
       
@@ -48,7 +48,7 @@ econ = function(n, p, cf, cv, cl, h, tau0, data, sims) {
   }
   
   
-  two = function(n, p, cv, cl, h, tau0, sims = 0) {
+  two = function(n, p, cf, cv, cl, h, tau0, sims = 0) {
     # Searching for the No. Tests in Expectation
     if (round(n * p) == 0) {
       theo = 1
@@ -112,7 +112,7 @@ econ = function(n, p, cf, cv, cl, h, tau0, data, sims) {
             DC = ifelse(tau0 < num_tests, cf + tau0 * cv, cf + num_tests * cv)
             
             
-            F1 = sample(unlist(lapply(1:100, function(i) {sample(data, replace = TRUE)})), size = n, replace = FALSE)
+            F1 = sample(data, size = n, replace = TRUE)
             F2 = sample(F1, length(p_groups) * opts)
             # Stochastic costs
             CS = (1-h) * (sum(F1) + sum(F2))
@@ -173,7 +173,7 @@ econ = function(n, p, cf, cv, cl, h, tau0, data, sims) {
     return(df)
   }
   
-  three = function(n, p, cv, cl, h, tau0, sims = 0) {
+  three = function(n, p, cf, cv, cl, h, tau0, sims = 0) {
     
     # Searching for the No. Tests
     if(round(n * p) == 0) {
@@ -257,7 +257,7 @@ econ = function(n, p, cf, cv, cl, h, tau0, data, sims) {
             DC = ifelse(tau0 < num_tests, cf + tau0 * cv, cf + num_tests * cv)
             
             
-            F1 = sample(unlist(lapply(1:100, function(i) {sample(data, replace = TRUE)})), size = n, replace = FALSE)
+            F1 = sample(data, size = n, replace = TRUE)
             F2 = sample(F1, length(p_groups) * opts1)
             F3 = sample(F2, length(p_groups2) * opts2)
             
@@ -323,7 +323,7 @@ econ = function(n, p, cf, cv, cl, h, tau0, data, sims) {
     return(df)
   }
   
-  four = function(n, p, cv, cl, h, tau0, sims = 0) {
+  four = function(n, p, cf, cv, cl, h, tau0, sims = 0) {
     
     if(round(n * p) == 0) {
       theo = 1
@@ -425,7 +425,7 @@ econ = function(n, p, cf, cv, cl, h, tau0, data, sims) {
             DC = ifelse(tau0 < num_tests, cf + tau0 * cv, cf + num_tests * cv)
             
             
-            F1 = sample(unlist(lapply(1:100, function(i) {sample(data, replace = TRUE)})), size = n, replace = FALSE)
+            F1 = sample(data, size = n, replace = TRUE)
             F2 = sample(F1, length(p_groups) * opts1)
             F3 = sample(F2, length(p_groups2) * opts2)
             F4 = sample(F3, length(p_groups3) * opts3)
@@ -490,7 +490,7 @@ econ = function(n, p, cf, cv, cl, h, tau0, data, sims) {
     return(df)
   }
   
-  five = function(n, p, cv, cl, h, tau0, sims = 0) {
+  five = function(n, p, cf, cv, cl, h, tau0, sims = 0) {
     
     if(round(n * p) == 0) {
       theo = 1
@@ -610,7 +610,7 @@ econ = function(n, p, cf, cv, cl, h, tau0, data, sims) {
             DC = ifelse(tau0 < num_tests, cf + tau0 * cv, cf + num_tests * cv)
             
             
-            F1 = sample(unlist(lapply(1:100, function(i) {sample(data, replace = TRUE)})), size = n, replace = FALSE)
+            F1 = sample(data, size = n, replace = TRUE)
             F2 = sample(F1, length(p_groups) * opts1)
             F3 = sample(F2, length(p_groups2) * opts2)
             F4 = sample(F3, length(p_groups3) * opts3)
@@ -675,11 +675,11 @@ econ = function(n, p, cf, cv, cl, h, tau0, data, sims) {
     return(df)
   }
   
-  Costs = rbind(one(n,p,cv,cl,h,tau0),
-                two(n,p,cv,cl,h,tau0, sims),
-                three(n,p,cv,cl,h,tau0, sims),
-                four(n,p,cv,cl,h,tau0, sims),
-                five(n,p,cv,cl,h,tau0, sims))
+  Costs = rbind(one(n,p,cf,cv,cl,h,tau0),
+                two(n,p,cf,cv,cl,h,tau0, sims),
+                three(n,p,cf,cv,cl,h,tau0, sims),
+                four(n,p,cf,cv,cl,h,tau0, sims),
+                five(n,p,cf,cv,cl,h,tau0, sims))
   
   Costs = tibble::rownames_to_column(Costs, "Algorithm")
   
@@ -797,37 +797,20 @@ x11()
 algorithm_colors = c("One-stage" = "black",
                      "Two-stage" = "green",
                      "Three-stage" = "blue",
-                     "Four-stage" = "darkgoldenrod",
-                     "Five-stage" = "red")
-
-# Plotting depend on time in days
-ggplot(meanecon, aes(x = Time, y = MCosts, color = Algorithm)) +
-  geom_line(aes(group = 1), linewidth = 1) +
-  geom_line(data = lowecon, aes(y = LCosts, group = 1), linewidth = 0.5, alpha = 0.1) +
-  geom_line(data = highecon, aes(y = UCosts, group = 1), linewidth = 0.5, alpha = 0.1) +
-  facet_wrap(~ tau0, nrow = 4, ncol = 3, scales = "free_y", 
-             labeller = labeller(tau0 = function(value) paste0("tau0 = ", value))) +
-  labs(title = "Progress of economic cost per individual for the COVID-19 pandemic in Hamburg",
-       x = "Time in days",
-       y = "Economic cost per individual") +
-  theme_bw() +
-  theme(legend.position = "right",
-        legend.key.size = unit(3, "lines")) +
-  scale_color_manual(values = algorithm_colors)
-
-
-
+                     "Four-stage" = "red",
+                     "Five-stage" = "darkmagenta")
 # Plotting depend on p instead of days
 ggplot(meanecon, aes(x = p, y = MCosts, color = Algorithm)) +
   geom_line(aes(group = 1), linewidth = 1) +
-  geom_line(data = lowecon, aes(y = LCosts, group = 1), linewidth = 0.5, alpha = 0.1) +
-  geom_line(data = highecon, aes(y = UCosts, group = 1), linewidth = 0.5, alpha = 0.1) +
+  geom_line(data = lowecon, aes(y = LCosts, group = 1), linewidth = 0.5, alpha = 0.25) +
+  geom_line(data = highecon, aes(y = UCosts, group = 1), linewidth = 0.5, alpha = 0.25) +
   facet_wrap(~ tau0, nrow = 4, ncol = 3, scales = "free_y", 
              labeller = labeller(tau0 = function(value) paste0("tau0 = ", value))) +
-  labs(title = "Progress of economic cost per individual for the COVID-19 pandemic in Hamburg",
+  labs(title = "Progress of average economic cost per individual for the COVID-19 pandemic in Hamburg",
        x = "Prevalence",
-       y = "Economic cost per individual") +
+       y = "Average economic cost per individual") +
   theme_bw() +
+  ylim(75,225) +
   theme(legend.position = "right",
         legend.key.size = unit(3, "lines")) +
   scale_color_manual(values = algorithm_colors)
