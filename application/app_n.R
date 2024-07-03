@@ -234,7 +234,7 @@ econ = function(n, p, cf, cv, cl, h, tau0, data, sims) {
             
             # Stage 2: Divide positive pools in subpools
             n2 = as.numeric(length(unlist(groups[p_groups])))
-            shuffled_indices2 = unname(sample(unlist(groups[p_groups])))
+            shuffled_indices2 = unname(unlist(groups[p_groups]))
             num_groups2 = ceiling(n2/opts2)
             groups2 = split(shuffled_indices2, ceiling(seq_along(1:n2)/opts2))
             
