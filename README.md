@@ -1,35 +1,9 @@
-# Policy Recommendation for Sample Pooling Strategies in Dynamic Epidemics under Uncertainty of Economic Costs
-Evaluate the optimal policy recommendation for the best pooling strategies under the assumption of an dynamically evolving epidemic if economic costs are subject to uncertainty. Uncertainty in costs is viewed as the potential loss of revenue or a latent increase in costs due to quarantining healthy individuals.
+# Retrospective Economic Evaluation of Group Testing in the COVID-19 Pandemic
 
-# Example
+The repository serves as a foundation for replication for the results discussed in the retrospective economic evaluation of group testing in the COVID-19 pandemic.
+It includes:  
 
-```
-# Import functions
-source("functions/Tests.R")
-source("functions/Costs.R")
+- Simulation studies under a varying parameters.
+- Visualization of the results.
+- Data on the incidence rate of SARS-CoV-2 in Germany.
 
-# Calculate number of expected tests in pooling algorithms
-
-tests  = calculate_tests(100,0.05)
-tau = unlist(tests["Tests"])
-omega = unlist(tests["Waiting.Times"])
-
-# Define values for parameters
-cv <- 10
-cm <- 20
-cp <- 15
-cl <- 5
-tau0 <- 50
-h <- 0.1
-n <- 100
-mu <- 0.05
-k <- 100 * 0.05
-co <- 8
-
-# Call the function with the provided values to calculate economic costs
-result <- calculateEconomicCosts(cv, cm, cp, cl, tau, tau0, h, omega, n, mu, k, co)
-
-# Print the result
-print(result)
-
-```
