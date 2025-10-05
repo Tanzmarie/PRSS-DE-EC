@@ -1,3 +1,8 @@
+### Clear workspace and load required libraries
+rm(list = ls())
+gc()
+options(scipen = 900)
+
 library("readr")
 library("tidyverse")
 library("optimx")
@@ -696,11 +701,8 @@ covid$prevalence = ((covid$`Inzidenz_7-Tage`/7) * 14)/100000
 prevalence = sort(unique(covid$prevalence))
 
 # Load income data for Germany
-pgen = read_csv("C:/Users/mbalzer/Desktop/SOEP-CORE.v38.1_eu_CSV/CSV/soepdata/pgen.csv")
-pequiv = read_csv("C:/Users/mbalzer/Desktop/SOEP-CORE.v38.1_eu_CSV/CSV/soepdata/pequiv.csv")
-
-pgen = read_csv("D:/Universität/PhD/Project 1/Data/cs-transfer/SOEP-CORE.v38.1_eu_CSV/CSV/soepdata/pgen.csv")
-pequiv = read_csv("D:/Universität/PhD/Project 1/Data/cs-transfer/SOEP-CORE.v38.1_eu_CSV/CSV/soepdata/pequiv.csv")
+pgen = read_csv("D:/PhD/EconEvalGT/Data/cs-transfer/SOEP-CORE.v38.1_eu_CSV/CSV/soepdata/pgen.csv")
+pequiv = read_csv("D:/PhD/EconEvalGT/Data/cs-transfer/SOEP-CORE.v38.1_eu_CSV/CSV/soepdata/pequiv.csv")
 
 # Data Preparation
 inc = pgen %>%
@@ -727,21 +729,10 @@ hb = dt %>%
 
 wage = hb$dailyinc
 
-# # Plot density and histogram
-# 
-# ggplot(hb, aes(x=dailyinc)) + 
-#   geom_histogram(aes(y=after_stat(density)), fill="white", color="black", bins=60) +  
-#   geom_density(alpha=0.2, fill="#FF6666") +  
-#   labs(title = "Histogram and kernel density of incomes in Hamburg",
-#        x = "Daily incomes",
-#        y = "Density") +
-#   theme_bw() 
-
-
 # Calculate the cost in parallel
 plan(multisession)
 
-n_values = c(150, 250, 500, 1000, 5000, 10000)
+n_values = c(150, 500, 1000, 5000)
 
 runsims = function(prevalence, n) {
   future_map(prevalence, ~ econ(.x, n = n, cf = 10000, cv = 150, cl = 300, h = 0.5, tau0 = 750, data = wage, sims = 25), .options = furrr_options(seed = 300))
@@ -791,28 +782,34 @@ highecon = res %>%
   filter(UCosts == min(UCosts, na.rm = TRUE)) %>%
   ungroup() 
 
-
 # Plot the results
-x11()
-algorithm_colors = c("One-stage" = "black",
-                     "Two-stage" = "green",
-                     "Three-stage" = "blue",
-                     "Four-stage" = "red",
-                     "Five-stage" = "yellow")
+algorithm_colors = c("One-stage"   = "#000000",
+                      "Two-stage"   = "#E69F00",
+                      "Three-stage" = "#0072B2",
+                      "Four-stage"  = "#009E73",
+                      "Five-stage"  = "#D55E00")
+
 ggplot(meanecon, aes(x = p, y = MCosts, color = Algorithm)) +
+  # shaded band (uncertainty / range)
+  geom_ribbon(
+    data = left_join(lowecon, highecon, by = c("p", "n"), suffix = c("_low", "_high")),
+    aes(x = p, ymin = LCosts_low , ymax = UCosts_high, group = n),
+    inherit.aes = FALSE, fill = "grey70", alpha = 0.5
+  ) +
+  
+  # main algorithm lines
   geom_line(aes(group = 1), linewidth = 1) +
-  geom_line(data = lowecon, aes(y = LCosts, group = 1), linewidth = 0.25, alpha = 0.25) +
-  geom_line(data = highecon, aes(y = UCosts, group = 1), linewidth = 0.25, alpha = 0.25) +
-  facet_wrap(~ n, nrow = 4, ncol = 3, scales = "free_y", 
+  
+  facet_wrap(~ n, nrow = 2, ncol = 2, scales = "free_x", 
              labeller = labeller(n = function(value) paste0("n = ", value))) +
-  labs(title = "Progress of average economic cost per individual for the COVID-19 pandemic in Hamburg",
-       x = "Prevalence",
-       y = "Average economic cost per individual") +
-  theme_bw() +
-  ylim(80,220) +
-  theme(legend.position = "right",
-        legend.key.size = unit(3, "lines")) +
-  scale_color_manual(values = algorithm_colors)
-
-
-
+  labs(x = "Prevalence",
+       y = "Economic cost per individual") +
+  theme_bw(base_size = 20) +
+  coord_cartesian(ylim = c(80, 220)) +   # avoids dropping points
+  scale_color_manual(values = algorithm_colors) +
+  theme(
+    legend.position = "bottom",
+    legend.title = element_blank(),
+    strip.text = element_text(size = 12, face = "bold"),
+    plot.title = element_text(hjust = 0.5, size = 14, face = "bold")
+  )

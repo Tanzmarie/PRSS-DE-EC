@@ -1,3 +1,8 @@
+### Clear workspace and load required libraries
+rm(list = ls())
+gc()
+options(scipen = 900)
+
 library("readr")
 library("tidyverse")
 library("optimx")
@@ -656,7 +661,7 @@ econ = function(n, p, cf, cv, cl, h, tau0, data, sims) {
       mcosts = NA
       lcosts = NA
       ucosts = NA
-    }
+     }
 
 
 
@@ -688,28 +693,16 @@ econ = function(n, p, cf, cv, cl, h, tau0, data, sims) {
 }
 
 # Load COVID-19 data for Germany
-covid = read_csv("application/data/COVID-19-Faelle_7-Tage-Inzidenz_Landkreise.csv")
-covidhb = covid[which(covid$Landkreis_id == "02000"),]
-covidbr = covid[which(covid$Landkreis_id == "04011"),]
-covidbe = covid[which(covid$Landkreis_id == "11001"),]
+data = read_csv("application/data/COVID-19-Faelle_7-Tage-Inzidenz_Landkreise.csv")
+covid = data[which(data$Landkreis_id == "02000"),]
 
 # Estimate the point-prevalence
-covidhb$prevalence = ((covidhb$`Inzidenz_7-Tage`/7) * 14)/100000
-covidbr$prevalence = ((covidbr$`Inzidenz_7-Tage`/7) * 14)/100000
-covidbe$prevalence = ((covidbe$`Inzidenz_7-Tage`/7) * 14)/100000
-
-prevalencehb = sort(unique(covidhb$prevalence))
-prevalencebr = sort(unique(covidbr$prevalence))
-prevalencebe = sort(unique(covidbe$prevalence))
-
-prevalence = list("Hamburg" = prevalencehb, "Bremen" = prevalencebr, "Berlin" = prevalencebe)
+covid$prevalence = ((covid$`Inzidenz_7-Tage`/7) * 14)/100000
+prevalence = sort(unique(covid$prevalence))
 
 # Load income data for Germany
-pgen = read_csv("C:/Users/mbalzer/Desktop/SOEP-CORE.v38.1_eu_CSV/CSV/soepdata/pgen.csv")
-pequiv = read_csv("C:/Users/mbalzer/Desktop/SOEP-CORE.v38.1_eu_CSV/CSV/soepdata/pequiv.csv")
-
-pgen = read_csv("D:/Universität/PhD/Project 1/Data/cs-transfer/SOEP-CORE.v38.1_eu_CSV/CSV/soepdata/pgen.csv")
-pequiv = read_csv("D:/Universität/PhD/Project 1/Data/cs-transfer/SOEP-CORE.v38.1_eu_CSV/CSV/soepdata/pequiv.csv")
+pgen = read_csv("D:/PhD/EconEvalGT/Data/cs-transfer/SOEP-CORE.v38.1_eu_CSV/CSV/soepdata/pgen.csv")
+pequiv = read_csv("D:/PhD/EconEvalGT/Data/cs-transfer/SOEP-CORE.v38.1_eu_CSV/CSV/soepdata/pequiv.csv")
 
 # Data Preparation
 inc = pgen %>%
@@ -734,125 +727,103 @@ dt = dt %>%
 hb = dt %>%
   filter(l11101 == 2)
 
-br = dt %>%
-  filter(l11101 == 4)
-
-be = dt %>%
-  filter(l11101 == 11)
-
-wagehb = hb$dailyinc
-wagebr = br$dailyinc
-wagebe = be$dailyinc
-
-wages = list("Hamburg" = wagehb, "Bremen" = wagebr, "Berlin" = wagebe)
-
-# # Plot density and histogram
-# 
-# ggplot(hb, aes(x=dailyinc)) + 
-#   geom_histogram(aes(y=after_stat(density)), fill="white", color="black", bins=60) +  
-#   geom_density(alpha=0.2, fill="#FF6666") +  
-#   labs(title = "Histogram and kernel density of incomes in Hamburg",
-#        x = "Daily incomes",
-#        y = "Density") +
-#   theme_bw() 
+wage = hb$dailyinc
 
 
 # Calculate the cost in parallel
 plan(multisession)
 
-cities_data <- list(
-  Hamburg = list(wages = wages$Hamburg, prevalence = prevalence$Hamburg),
-  Bremen = list(wages = wages$Bremen, prevalence = prevalence$Bremen),
-  Berlin = list(wages = wages$Berlin, prevalence = prevalence$Berlin)
-)
+cv_values = c(150, 300, 500, 2000)  
 
-runsims = function(prevalence, wage_data) {
-  future_map(prevalence, ~ econ(.x, n = 1000, cf = 10000, cv = 150, cl = 300, h = 0.5, tau0 = 750, data = wage_data, sims = 25), .options = furrr_options(seed = 300))
+runsims = function(prevalence, cv) {
+  future_map(covid$prevalence, ~ econ(.x, n = 1000, cf = 10000, cv = cv, cl = 300, h = 0.5, tau0 = 750, data = wage, sims = 25), .options = furrr_options(seed = 300))
 }
 
-
-sims = future_map(names(cities_data), ~ {
-  city_name <- .x
-  city_data <- cities_data[[city_name]]
-  prevalence_vector <- city_data$prevalence
-  wage_data <- city_data$wages
-  result_matrices = runsims(prevalence_vector, wage_data)
-  
-  # Flatten and combine the result matrices
-  flat_result = do.call(bind_rows, lapply(result_matrices, as.data.frame))
-  
-  list(city = city_name, results = flat_result)
+sims = future_map(cv_values, ~ {
+  result_matrices = runsims(covid$prevalence, .x)
+  list(cv = .x, results = result_matrices)
 }, .options = furrr_options(seed = 300))
 
-names(sims) <- names(cities_data)
-
-
-# Function to calculate the lowest cost and corresponding algorithm for each prevalence level within each city
-avelow = function(city_result) {
-  city_result$results %>%
-    group_by(p) %>%
-    summarize(
-      lowest_cost = min(MCosts, na.rm = TRUE),
-      Algorithm = Algorithm[which.min(c(MCosts))]
-    ) %>%
-    ungroup()
-}
-
-minlow = function(city_result) {
-  city_result$results %>%
-    group_by(p) %>%
-    summarize(
-      lowest_cost = min(LCosts, na.rm = TRUE),
-      Algorithm = Algorithm[which.min(c(LCosts))]
-    ) %>%
-    ungroup()
-}
-
-maxlow = function(city_result) {
-  city_result$results %>%
-    group_by(p) %>%
-    summarize(
-      lowest_cost = min(UCosts, na.rm = TRUE),
-      Algorithm = Algorithm[which.min(c(UCosts))]
-    ) %>%
-    ungroup()
+# Prepare data for presentation
+todf = function(results) {
+  # Initialize start date or any base time
+  start_date = as.Date("2020-01-03") 
+  
+  # Flatten results and assign a global incremental Time value
+  flat_list = map(results, function(res) {
+    data_frames = map2(res$results, seq_along(res$results), function(df, j) {
+      mutate(df, cv = res$cv, Time = start_date + (j - 1))
+    })
+    data_frames
+  })
+  
+  # Flatten the list of lists into a single list
+  flat_list = flatten(flat_list)
+  
+  # Combine all data frames into one
+  bind_rows(flat_list) %>%
+    relocate(cv, Time)
 }
 
 
-# Calculate the lowest cost and corresponding algorithm at each prevalence level for each city
-meanlow = map(sims, avelow)
-meanlow = bind_rows(meanlow, .id = "city")
+res = todf(sims)
 
-lowecon = map(sims, minlow)
-lowecon = bind_rows(lowecon, .id = "city")
+meanecon = res %>%
+  group_by(cv, Time) %>%
+  filter(MCosts == min(MCosts, na.rm = TRUE)) %>%
+  ungroup() 
 
-maxecon = map(sims, maxlow)
-maxecon = bind_rows(maxecon, .id = "city")
+lowecon = res %>%
+  group_by(cv, Time) %>%
+  filter(LCosts == min(LCosts, na.rm = TRUE)) %>%
+  ungroup() 
 
-# Plot the results
-x11()
-algorithm_colors = c("One-stage" = "black",
-                     "Two-stage" = "green",
-                     "Three-stage" = "blue",
-                     "Four-stage" = "red",
-                     "Five-stage" = "yellow")
-ggplot(meanlow, aes(x = p, y = lowest_cost, color = Algorithm)) +
+highecon = res %>%
+  group_by(cv, Time) %>%
+  filter(UCosts == min(UCosts, na.rm = TRUE)) %>%
+  ungroup() 
+
+# Create plot
+
+desired_order = c(150, 300, 500, 2000)
+
+make_ordered_lab = function(df, desired = desired_order) {
+  df %>%
+    mutate(
+      cv = factor(cv, levels = desired),
+      cv_lab = paste0("c[v] == ", as.character(cv)),
+      cv_lab = factor(cv_lab, levels = paste0("c[v] == ", desired))
+    )
+}
+
+meanecon = meanecon %>% make_ordered_lab()
+lowecon = lowecon %>% make_ordered_lab()
+highecon = highecon %>% make_ordered_lab()
+
+ribbon_data = left_join(lowecon, highecon, by = c("p", "cv"), suffix = c("_low", "_high")) %>%
+  mutate(
+    cv_lab = paste0("c[v] == ", as.character(cv)),
+    cv_lab = factor(cv_lab, levels = paste0("c[v] == ", desired_order))
+  )
+
+
+algorithm_colors = c("One-stage"   = "#000000",
+                     "Two-stage"   = "#E69F00",
+                     "Three-stage" = "#0072B2",
+                     "Four-stage"  = "#009E73",
+                     "Five-stage"  = "#D55E00")
+
+ggplot(meanecon, aes(x = p, y = MCosts, color = Algorithm)) +
+  geom_ribbon(data = ribbon_data,
+              aes(x = p, ymin = LCosts_low, ymax = UCosts_high, group = cv_lab),
+              inherit.aes = FALSE, fill = "grey70", alpha = 0.5) +
   geom_line(aes(group = 1), linewidth = 1) +
-  geom_line(data = lowecon, aes(y = lowest_cost, group = 1), linewidth = 0.5, alpha = 0.3) +
-  geom_line(data = maxecon, aes(y = lowest_cost, group = 1), linewidth = 0.5, alpha = 0.3) +
-  facet_wrap(~ city, nrow = 1, ncol = 3, scales = "free_y", 
-             labeller = labeller(n = function(value) paste0("n = ", value))) +
-  labs(title = "Progress of average economic cost per individual for the COVID-19 pandemic",
-       x = "Prevalence",
-       y = "Average economic cost per individual") +
-  theme_bw() +
-  ylim(60,175) +
-  theme(legend.position = "right",
-        legend.key.size = unit(3, "lines")) +
-  scale_color_manual(values = algorithm_colors)
-
-
-
+  facet_wrap(~ cv_lab, nrow = 2, ncol = 2, scales = "free",
+             labeller = label_parsed) +    # =- parse the "c[v] == 150" strings
+  labs(x = "Prevalence", y = "Economic cost per individual") +
+  theme_bw(base_size = 20) +
+  scale_color_manual(values = algorithm_colors) +
+  theme(legend.position = "bottom", legend.title = element_blank())
 
 
 

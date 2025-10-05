@@ -1,3 +1,8 @@
+### Clear workspace and load required libraries
+rm(list = ls())
+gc()
+options(scipen = 900)
+
 library("readr")
 library("tidyverse")
 library("optimx")
@@ -697,11 +702,8 @@ covid$prevalence = ((covid$`Inzidenz_7-Tage`/7) * 14)/100000
 prevalence = sort(unique(covid$prevalence))
 
 # Load income data for Germany
-pgen = read_csv("C:/Users/mbalzer/Desktop/SOEP-CORE.v38.1_eu_CSV/CSV/soepdata/pgen.csv")
-pequiv = read_csv("C:/Users/mbalzer/Desktop/SOEP-CORE.v38.1_eu_CSV/CSV/soepdata/pequiv.csv")
-
-pgen = read_csv("D:/Universität/PhD/Project 1/Data/cs-transfer/SOEP-CORE.v38.1_eu_CSV/CSV/soepdata/pgen.csv")
-pequiv = read_csv("D:/Universität/PhD/Project 1/Data/cs-transfer/SOEP-CORE.v38.1_eu_CSV/CSV/soepdata/pequiv.csv")
+pgen = read_csv("D:/PhD/EconEvalGT/Data/cs-transfer/SOEP-CORE.v38.1_eu_CSV/CSV/soepdata/pgen.csv")
+pequiv = read_csv("D:/PhD/EconEvalGT/Data/cs-transfer/SOEP-CORE.v38.1_eu_CSV/CSV/soepdata/pequiv.csv")
 
 # Data Preparation
 inc = pgen %>%
@@ -728,20 +730,10 @@ hb = dt %>%
 
 wage = hb$dailyinc
 
-# # Plot density and histogram
-# 
-# ggplot(hb, aes(x=dailyinc)) + 
-#   geom_histogram(aes(y=after_stat(density)), fill="white", color="black", bins=60) +  
-#   geom_density(alpha=0.2, fill="#FF6666") +  
-#   labs(title = "Histogram and kernel density of incomes in Hamburg",
-#        x = "Daily incomes",
-#        y = "Density") +
-#   theme_bw() 
-
 # Calculate the cost in parallel
 plan(multisession)
 
-tau0_values = c(0,50,100,250,750,1000)
+tau0_values = c(0,250,750,1000)
 
 runsims = function(prevalence, tau0) {
   future_map(prevalence, ~ econ(.x, n = 1000, cf = 10000, cv = 150, cl = 300, h = 0.5, tau0 = tau0, data = wage, sims = 25), .options = furrr_options(seed = 300))
@@ -793,26 +785,53 @@ highecon = res %>%
 
 
 # Plot the results
-x11()
-algorithm_colors = c("One-stage" = "black",
-                     "Two-stage" = "green",
-                     "Three-stage" = "blue",
-                     "Four-stage" = "red",
-                     "Five-stage" = "darkmagenta")
-# Plotting depend on p instead of days
+algorithm_colors = c("One-stage"   = "#000000",
+                     "Two-stage"   = "#E69F00",
+                     "Three-stage" = "#0072B2",
+                     "Four-stage"  = "#009E73",
+                     "Five-stage"  = "#D55E00")
+
+desired_order = tau0_values
+
+make_ordered_lab = function(df, desired = desired_order) {
+  df %>%
+    mutate(
+      tau0 = factor(tau0, levels = desired),
+      tau_lab = paste0("tau[0] == ", as.character(tau0)),   # =- parseable math
+      tau_lab = factor(tau_lab, levels = paste0("tau[0] == ", desired))
+    )
+}
+
+# apply to each df
+meanecon  = meanecon  %>% make_ordered_lab()
+lowecon   = lowecon   %>% make_ordered_lab()
+highecon  = highecon  %>% make_ordered_lab()
+
+# joined ribbon data also needs tau_lab
+ribbon_data = left_join(lowecon, highecon, by = c("p", "tau0"), suffix = c("_low", "_high")) %>%
+  mutate(
+    tau_lab = paste0("tau[0] == ", as.character(tau0)),
+    tau_lab = factor(tau_lab, levels = paste0("tau[0] == ", desired_order))
+  )
+
 ggplot(meanecon, aes(x = p, y = MCosts, color = Algorithm)) +
+  geom_ribbon(
+    data = ribbon_data,
+    aes(x = p, ymin = LCosts_low, ymax = UCosts_high, group = tau_lab),
+    inherit.aes = FALSE, fill = "grey70", alpha = 0.5
+  ) +
   geom_line(aes(group = 1), linewidth = 1) +
-  geom_line(data = lowecon, aes(y = LCosts, group = 1), linewidth = 0.5, alpha = 0.25) +
-  geom_line(data = highecon, aes(y = UCosts, group = 1), linewidth = 0.5, alpha = 0.25) +
-  facet_wrap(~ tau0, nrow = 4, ncol = 3, scales = "free_y", 
-             labeller = labeller(tau0 = function(value) paste0("tau0 = ", value))) +
-  labs(title = "Progress of average economic cost per individual for the COVID-19 pandemic in Hamburg",
-       x = "Prevalence",
-       y = "Average economic cost per individual") +
-  theme_bw() +
-  ylim(75,225) +
-  theme(legend.position = "right",
-        legend.key.size = unit(3, "lines")) +
-  scale_color_manual(values = algorithm_colors)
+  facet_wrap(~ tau_lab, nrow = 2, ncol = 2, scales = "free",
+             labeller = label_parsed) +   # =- parse to get τ₀ = ...
+  labs(x = "Prevalence", y = "Economic cost per individual") +
+  coord_cartesian(ylim = c(80, 220)) +   # avoids dropping points
+  theme_bw(base_size = 20) +
+  scale_color_manual(values = algorithm_colors) +
+  theme(
+    legend.position = "bottom",
+    legend.title = element_blank(),
+    strip.text = element_text(size = 12, face = "bold"),
+    plot.title = element_text(hjust = 0.5, size = 14, face = "bold")
+  )
 
 
